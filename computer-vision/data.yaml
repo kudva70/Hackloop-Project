@@ -1,0 +1,12 @@
+train: train/images
+val: valid/images
+test: test/images
+nc: 9
+names: ['Bluetooth headphones', 'Electronic watch', 'HUB', 'Keyboard', 'Laptop', 'MOUSE', 'PHONE', 'Power bank', 'Screen']
+
+roboflow:
+  workspace: s-workspace-upys1
+  project: electronic-products
+  version: 7
+  license: CC BY 4.0
+  url: https://universe.roboflow.com/s-workspace-upys1/electronic-products/dataset/7

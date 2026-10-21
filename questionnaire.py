@@ -389,3 +389,4 @@ def run_questionnaire(detection_result):
     print(json.dumps(result, indent=4))
 
     return result
+

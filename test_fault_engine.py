@@ -82,7 +82,54 @@ class TestFaultDiagnosisEngine(unittest.TestCase):
         self.assertEqual(primary["fault_id"], "CIRCUIT_BREAKER_TRIP_SHORT")
         self.assertEqual(primary["severity"], "CRITICAL")
 
+    def test_questionnaire_payload_processing(self):
+        payload = {
+            "status": "success",
+            "module": "questionnaire",
+            "device_type": "laptop",
+            "detected_findings": ["screen crack"],
+            "detection_confidence": 0.91,
+            "answers": {
+                "power": "Yes",
+                "display": "Black screen",
+                "performance": "Overheating",
+                "charging": "Not tested",
+                "duration": "A few days",
+                "onset": "All the time",
+                "possible_cause": "Liquid exposure",
+                "previous_repair": "No",
+                "hazards": "No"
+            },
+            "safety_alert": False,
+            "requires_professional_attention": False,
+            "diagnosis": None,
+            "repair_recommendation": None,
+            "created_at": "2026-10-21T05:15:54.051104+00:00"
+        }
+
+        from fault_engine import process_questionnaire
+        result = process_questionnaire(payload)
+
+        # Safety & Pro attention checks
+        self.assertTrue(result["safety_alert"], "Safety alert must be triggered due to liquid exposure")
+        self.assertTrue(result["requires_professional_attention"], "Liquid exposure requires professional attention")
+
+        # Diagnosis block verification
+        self.assertIsNotNone(result["diagnosis"])
+        diag = result["diagnosis"]
+        self.assertIn("fault_id", diag)
+        self.assertIn("primary_fault", diag)
+        self.assertGreater(len(diag["troubleshooting_steps"]), 0)
+
+        # Recommendation block verification
+        self.assertIsNotNone(result["repair_recommendation"])
+        rec = result["repair_recommendation"]
+        self.assertIn("action", rec)
+        self.assertIn("estimated_cost", rec)
+        self.assertIn("required_tools", rec)
+
 
 if __name__ == "__main__":
     unittest.main()
+
 

@@ -336,6 +336,39 @@ KNOWLEDGE_BASE: Dict[str, List[FaultRule]] = {
                 ["coffee", "keyboard"],
                 ["liquid", "wet"]
             ]
+        ),
+        FaultRule(
+            fault_id="LAPTOP_PHYSICAL_SCREEN_DAMAGE",
+            title="Cracked LCD / OLED Display Panel (Physical Impact)",
+            severity="MEDIUM",
+            complexity="Medium (Intermediate)",
+            recommendation="REPLACE (Display Panel Assembly)",
+            rationale="Cracked glass or severed liquid crystal matrix cannot be repaired with software or soldering; it requires replacing the internal display panel.",
+            required_tools=["Plastic Spudger / Prying Tool", "Precision Screwdriver PH00", "Replacement OEM Screen Panel"],
+            estimated_cost="₹2,500 - ₹6,000 ($30 - $75)",
+            estimated_time="30 - 45 minutes",
+            safety_warnings=[
+                "Disconnect the battery and AC charger before disconnecting the eDP display cable to avoid blowing the motherboard backlight fuse."
+            ],
+            troubleshooting_steps=[
+                "1. Connect laptop to an external monitor via HDMI to verify that GPU and motherboard boot successfully.",
+                "2. If external monitor displays the OS, the core system is healthy and only the screen panel requires replacement.",
+                "3. Remove bezel frame using a plastic spudger.",
+                "4. Unscrew LCD panel mounting brackets and find the panel part number sticker on the back (e.g. NV156FHM-N48).",
+                "5. Unclip 30-pin or 40-pin eDP video connector.",
+                "6. Install the replacement panel, reconnect eDP cable, test before snapping bezel back."
+            ],
+            positive_keywords=["screen crack", "crack", "cracked", "broken screen", "shattered", "ink bleed", "black spots", "lines on screen"],
+            negative_keywords=[],
+            common_symptoms=[
+                "Visible crack, hairline fracture, or spiderweb pattern on the display glass",
+                "Ink-bleed blotches or black circular voids on the screen",
+                "Vertical or horizontal colored lines with fractured glass"
+            ],
+            co_occurrence_patterns=[
+                ["screen", "crack"],
+                ["broken", "display"]
+            ]
         )
     ],
 
@@ -718,6 +751,120 @@ class FaultDiagnosisEngine:
 
         return result
 
+    def diagnose_questionnaire(self, questionnaire_payload: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Takes a questionnaire output payload (with device_type, detected_findings, answers)
+        and populates:
+          - 'safety_alert': bool (set to True if hazards, liquid, or high-risk faults exist)
+          - 'requires_professional_attention': bool
+          - 'diagnosis': detailed structured diagnosis object
+          - 'repair_recommendation': actionable recommendation object with cost & complexity
+        """
+        result = dict(questionnaire_payload)
+        device = result.get("device_type", "laptop")
+        findings = result.get("detected_findings", [])
+        answers = result.get("answers", {})
+        det_conf = result.get("detection_confidence", 0.90)
+
+        # 1. Synthesize symptom string from visual findings and questionnaire answers
+        symptom_parts = []
+        if findings:
+            symptom_parts.append(f"Visual detection findings: {', '.join(findings)}")
+
+        ignored_answers = {"", "no", "none", "not tested", "normal", "unknown", "n/a", "none of the above"}
+        for question_key, ans in answers.items():
+            if str(ans).strip().lower() not in ignored_answers:
+                clean_key = question_key.replace("_", " ")
+                symptom_parts.append(f"{clean_key}: {ans}")
+
+        combined_symptoms = ". ".join(symptom_parts)
+        if not combined_symptoms:
+            combined_symptoms = "Device is not operating as expected."
+
+        # 2. Safety & Hazard Analysis
+        hazards = str(answers.get("hazards", "")).strip().lower()
+        possible_cause = str(answers.get("possible_cause", "")).strip().lower()
+
+        safety_alert = False
+        requires_pro = False
+        safety_reasons = []
+
+        if hazards not in ["no", "", "none", "n/a"]:
+            safety_alert = True
+            requires_pro = True
+            safety_reasons.append(f"Reported active hazard: {answers.get('hazards')}")
+
+        if "liquid" in possible_cause or "water" in possible_cause:
+            safety_alert = True
+            requires_pro = True
+            safety_reasons.append("Liquid exposure causes severe corrosion and micro-shorts under surface-mount ICs. Requires ultrasonic board cleaning.")
+
+        if any(term in combined_symptoms.lower() for term in ["spark", "smoke", "shock", "burning", "burnt"]):
+            safety_alert = True
+            requires_pro = True
+            safety_reasons.append("Thermal/electrical hazard detected (sparking, smoke, or burning smell).")
+
+        # 3. Execute core diagnosis
+        base_diag = self.diagnose(
+            device=device,
+            user_symptoms=combined_symptoms,
+            detection_confidence=det_conf
+        )
+
+        primary = base_diag["primary_diagnosis"]
+        alternatives = base_diag.get("alternative_diagnoses", [])
+
+        # If severity is CRITICAL or DANGEROUS, elevate flags
+        if primary["severity"] in ["CRITICAL", "HIGH"] or "dangerous" in primary["repair_complexity"].lower():
+            safety_alert = True
+            if "service" in primary["recommendation"].lower() or "dangerous" in primary["repair_complexity"].lower():
+                requires_pro = True
+
+        # Check visual findings (e.g. screen crack) to augment secondary faults or recommendation
+        if any("crack" in f.lower() for f in findings) and primary["fault_id"] != "LAPTOP_PHYSICAL_SCREEN_DAMAGE":
+            alternatives.insert(0, {
+                "fault_id": "LAPTOP_PHYSICAL_SCREEN_DAMAGE",
+                "fault_title": "Cracked LCD / OLED Display Panel (Physical Impact)",
+                "confidence_score": 0.95,
+                "recommendation": "REPLACE (Display Panel Assembly)",
+                "supporting_evidence": ["Visual object detection identified physical screen fracture."]
+            })
+
+        # 4. Format populated diagnosis block
+        result["safety_alert"] = safety_alert
+        result["requires_professional_attention"] = requires_pro
+
+        result["diagnosis"] = {
+            "primary_fault": primary["fault_title"],
+            "fault_id": primary["fault_id"],
+            "confidence": primary["confidence_score"],
+            "severity": primary["severity"],
+            "supporting_evidence": primary["supporting_evidence"] + safety_reasons,
+            "safety_instructions": primary["safety_warnings"],
+            "troubleshooting_steps": primary["troubleshooting_steps"],
+            "secondary_faults": [
+                {
+                    "fault_id": alt["fault_id"],
+                    "fault_title": alt["fault_title"],
+                    "confidence": alt["confidence_score"],
+                    "recommendation": alt["recommendation"]
+                }
+                for alt in alternatives
+            ]
+        }
+
+        # 5. Format populated repair recommendation block
+        result["repair_recommendation"] = {
+            "action": primary["recommendation"],
+            "complexity": primary["repair_complexity"],
+            "rationale": primary["recommendation_rationale"],
+            "estimated_cost": primary["estimated_parts_cost"],
+            "estimated_time": primary["estimated_diy_time"],
+            "required_tools": primary["required_tools"]
+        }
+
+        return result
+
     def get_supported_devices(self) -> List[str]:
         return list(self.kb.keys())
 
@@ -737,4 +884,10 @@ engine = FaultDiagnosisEngine()
 def run_diagnosis(device: str, symptoms: str) -> Dict[str, Any]:
     """Simple API helper function."""
     return engine.diagnose(device=device, user_symptoms=symptoms)
+
+
+def process_questionnaire(questionnaire_data: Dict[str, Any]) -> Dict[str, Any]:
+    """Integrates directly with questionnaire output dictionaries."""
+    return engine.diagnose_questionnaire(questionnaire_data)
+
 

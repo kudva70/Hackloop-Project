@@ -200,6 +200,7 @@ def main():
     parser.add_argument("--mode", choices=["image", "video"], help="Input mode: image or video")
     parser.add_argument("--path", help="Path to image or video file")
     parser.add_argument("--conf", type=float, default=0.25, help="Confidence threshold (default: 0.25)")
+    parser.add_argument("--diagnose", action="store_true", help="Launch interactive fault diagnosis after detection")
     args = parser.parse_args()
 
     mode = args.mode
@@ -221,13 +222,27 @@ def main():
         print("\n================ DETECTION RESULTS ================")
         print(f"File: {output['filename']}")
 
+        detected_devices = []
         if not output["detections"]:
             print("No targeted faulty devices detected.")
         else:
             for item in output["detections"]:
-                print(f"  - Detected: {item['device']} (Confidence: {item.get('confidence') or item.get('highest_confidence')})")
+                dev_name = item['device']
+                detected_devices.append(dev_name)
+                conf_val = item.get('confidence') or item.get('highest_confidence')
+                print(f"  - Detected: {dev_name} (Confidence: {conf_val})")
 
         print("===================================================\n")
+
+        # Optional Fault Diagnosis Hook
+        should_diagnose = args.diagnose
+        if not should_diagnose and detected_devices and sys.stdin.isatty():
+            prompt_diag = input("Would you like to diagnose this device for faults? (y/n) [default: y]: ").strip().lower()
+            should_diagnose = prompt_diag in ["", "y", "yes"]
+
+        if should_diagnose and detected_devices:
+            from assistant import run_pipeline
+            run_pipeline(image_path=str(file_path))
 
     except (FileNotFoundError, ValueError) as error:
         print(f"[ERROR] {error}")
@@ -236,3 +251,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+

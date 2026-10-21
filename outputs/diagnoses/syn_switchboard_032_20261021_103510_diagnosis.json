@@ -1,0 +1,54 @@
+{
+  "status": "success",
+  "device": "switchboard",
+  "original_detection": {
+    "detected_device": "switchboard",
+    "detection_confidence": 0.9867,
+    "bounding_box": [
+      245.97,
+      194.18,
+      500.73,
+      447.01
+    ]
+  },
+  "user_symptoms": "There is a blue spark and burning smell when I turn the switch on",
+  "diagnosis_note": "High confidence rule match for 'Carbonized Switch Rocker Contacts / Terminal Arcing' based on provided symptoms.",
+  "primary_diagnosis": {
+    "fault_id": "SWITCH_BURNT_CONTACT_ARCING",
+    "fault_title": "Carbonized Switch Rocker Contacts / Terminal Arcing",
+    "confidence_score": 0.65,
+    "severity": "HIGH",
+    "repair_complexity": "Medium (Intermediate)",
+    "recommendation": "REPAIR (DIY Switch Replacement) / SERVICE (Electrician)",
+    "recommendation_rationale": "Repeated electrical arcing erodes copper switch contacts, creating carbon buildup that increases contact resistance and generates intense heat.",
+    "estimated_diy_time": "15 - 25 minutes",
+    "estimated_parts_cost": "\u20b930 - \u20b9120 ($0.50 - $1.50) per switch",
+    "required_tools": [
+      "Neon Phase Tester / Multimeter",
+      "Insulated Screwdriver (+ & -)",
+      "Replacement Modular Switch (6A/16A)",
+      "Wire Stripper"
+    ],
+    "safety_warnings": [
+      "HIGH RISK ELECTRICAL HAZARD: Turn off the main MCB (Miniature Circuit Breaker) at the main distribution panel before opening the switchboard plate.",
+      "Always verify zero voltage with a calibrated neon tester or digital voltmeter before touching any exposed terminal screws."
+    ],
+    "troubleshooting_steps": [
+      "1. Turn OFF the main branch MCB controlling this switchboard.",
+      "2. Test a nearby confirmed live socket with your phase tester, then test the target board to ensure power is genuinely DEAD.",
+      "3. Carefully pry off the front decorative switch plate cover.",
+      "4. Unscrew the two mounting screws holding the modular frame to the wall box.",
+      "5. Pull the board gently forward without pulling on wires.",
+      "6. Inspect the switch behind: look for black soot, melted plastic casing, or loose terminal screws.",
+      "7. Loosen the terminal screws, remove the old switch, and snap the new OEM replacement modular switch into the grid.",
+      "8. Strip fresh copper (5mm), insert firmly into terminals, and tighten screws solidly to prevent future loose-connection arcing.",
+      "9. Push board back, secure wall screws, and restore MCB power."
+    ],
+    "supporting_evidence": [
+      "Reported symptoms directly match indicator terms: spark, burning smell",
+      "Strong symptom co-occurrence pattern identified: [spark + switch]"
+    ]
+  },
+  "alternative_diagnoses": [],
+  "critical_safety_alert": "HIGH RISK ELECTRICAL HAZARD: Turn off the main MCB (Miniature Circuit Breaker) at the main distribution panel before opening the switchboard plate."
+}

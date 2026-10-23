@@ -1,20 +1,33 @@
+"""
+AI Repair Assistant - Detection module (Inside computer-vision directory)
+"""
 
 from pathlib import Path
 from ultralytics import YOLO
 
-# Project paths
 BASE_DIR = Path(__file__).resolve().parent
+ROOT_DIR = BASE_DIR.parent
 OUTPUT_DIR = BASE_DIR / "outputs"
 
-# Load YOLO once
-model = YOLO(str(BASE_DIR / "yolo26n.pt"))
+MODEL_CANDIDATES = [
+    ROOT_DIR / "weights" / "best.pt",
+    BASE_DIR / "weights" / "best.pt",
+    ROOT_DIR / "yolov8n.pt",
+    BASE_DIR / "yolov8n.pt",
+]
+
+def load_model():
+    for p in MODEL_CANDIDATES:
+        if p.is_file():
+            return YOLO(str(p))
+    return YOLO("yolov8n.pt")
+
+model = load_model()
 
 
 def detect_image(image_path):
     """Detect objects in an image and return structured results."""
-
     image_path = Path(image_path)
-
     if not image_path.is_absolute():
         image_path = BASE_DIR / image_path
 
@@ -32,19 +45,14 @@ def detect_image(image_path):
     )
 
     detections = []
-
     for result in results:
         for box in result.boxes:
             class_id = int(box.cls[0].item())
             confidence = float(box.conf[0].item())
-
             detections.append({
                 "device": result.names[class_id],
                 "confidence": round(confidence, 4),
-                "box": [
-                    round(float(value), 2)
-                    for value in box.xyxy[0].tolist()
-                ],
+                "box": [round(float(value), 2) for value in box.xyxy[0].tolist()],
             })
 
     return {
@@ -55,9 +63,7 @@ def detect_image(image_path):
 
 def detect_video(video_path):
     """Detect objects in a video and save an annotated video."""
-
     video_path = Path(video_path)
-
     if not video_path.is_absolute():
         video_path = BASE_DIR / video_path
 
@@ -72,19 +78,17 @@ def detect_video(video_path):
         name="videos",
         exist_ok=True,
         verbose=False,
+        stream=True,
     )
 
     detections = []
-
     for frame_number, result in enumerate(results):
         for box in result.boxes:
             class_id = int(box.cls[0].item())
             confidence = float(box.conf[0].item())
-            name = result.names[class_id]
-
             detections.append({
                 "frame": frame_number,
-                "device": name,
+                "device": result.names[class_id],
                 "confidence": round(confidence, 4),
             })
 
@@ -115,7 +119,7 @@ if __name__ == "__main__":
             for item in output["detections"]:
                 print(item)
 
-        print("\nCheck the outputs folder for the annotated result.")
+        print(f"\nAnnotated results saved to: {OUTPUT_DIR}")
 
     except (FileNotFoundError, ValueError) as error:
         print(f"Error: {error}")

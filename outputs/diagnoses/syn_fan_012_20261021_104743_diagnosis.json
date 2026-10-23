@@ -1,0 +1,46 @@
+{
+  "status": "success",
+  "device": "fan",
+  "original_detection": {
+    "detected_device": "fan",
+    "detection_confidence": null,
+    "bounding_box": null
+  },
+  "user_symptoms": "1",
+  "diagnosis_note": "Generic diagnostic check: Symptoms provided did not match a specific single failure mode with high confidence.",
+  "primary_diagnosis": {
+    "fault_id": "FAN_WEAK_CAPACITOR",
+    "fault_title": "Degraded or Blown Start/Run Capacitor",
+    "confidence_score": 0.35,
+    "severity": "MEDIUM",
+    "repair_complexity": "Medium (Intermediate)",
+    "recommendation": "REPAIR (DIY)",
+    "recommendation_rationale": "A 2.5uF/3.15uF capacitor is inexpensive (\u20b950-\u20b9120) and easily replaced with basic screwdrivers.",
+    "estimated_diy_time": "20 - 30 minutes",
+    "estimated_parts_cost": "\u20b950 - \u20b9150 ($1 - $2)",
+    "required_tools": [
+      "Insulated Screwdriver",
+      "Wire Stripper",
+      "Insulation Tape / Wire Nuts",
+      "New Capacitor (2.5uF / 3.15uF 440V)"
+    ],
+    "safety_warnings": [
+      "DANGER: Turn off the main electrical circuit breaker/isolator before touching any wires.",
+      "Capacitors store residual electric charge even when turned off. Discharge by shorting terminals with an insulated-handle screwdriver before handling."
+    ],
+    "troubleshooting_steps": [
+      "1. Power OFF the fan switch and turn off the breaker.",
+      "2. Check if blades spin smoothly by hand. If they spin freely without friction, the bearings are fine and the capacitor is the culprit.",
+      "3. Remove the top decorative canopy to reveal the cylindrical capacitor.",
+      "4. Inspect capacitor for bulging, leakage, or oily residue.",
+      "5. Take a photo of wire connections for reference.",
+      "6. Swap with a new capacitor of the EXACT same rating (usually 2.5uF for standard ceiling fans).",
+      "7. Secure wire joints with wire nuts or heat-shrink tape and reassemble."
+    ],
+    "supporting_evidence": [
+      "User-described symptoms were broad or nonspecific. Suggesting primary systematic triage steps."
+    ]
+  },
+  "alternative_diagnoses": [],
+  "critical_safety_alert": "DANGER: Turn off the main electrical circuit breaker/isolator before touching any wires."
+}

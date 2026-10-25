@@ -1,0 +1,363 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>RepairEx | Know before you replace</title>
+
+<style>
+:root {
+  --bg: #FFFFFF;
+  --grey: #F5F5F7;
+  --ink: #1D1D1F;
+  --muted: #6E6E73;
+  --line: #D2D2D7;
+  --blue: #0071E3;
+  --blue-dark: #0077ED;
+  --green: #248A3D;
+  --orange: #C77700;
+  --red: #D70015;
+  --font: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "Helvetica Neue", "Segoe UI", Arial, sans-serif;
+}
+
+* { box-sizing: border-box; margin: 0; }
+html { scroll-behavior: smooth; }
+
+body {
+  font: 17px/1.5 var(--font);
+  color: var(--ink);
+  background: var(--bg);
+  -webkit-font-smoothing: antialiased;
+}
+
+:focus-visible { outline: 3px solid var(--blue); outline-offset: 3px; }
+.container { max-width: 980px; margin: 0 auto; padding: 0 24px; }
+
+/* Frosted nav */
+.nav {
+  position: sticky; top: 0; z-index: 10;
+  background: rgba(255, 255, 255, 0.8);
+  -webkit-backdrop-filter: saturate(180%) blur(20px);
+  backdrop-filter: saturate(180%) blur(20px);
+  border-bottom: 1px solid rgba(0, 0, 0, 0.08);
+}
+.nav .container { display: flex; justify-content: space-between; align-items: center; height: 52px; }
+.logo { font-weight: 600; font-size: 19px; letter-spacing: -0.02em; color: var(--ink); text-decoration: none; }
+.nav a.link { font-size: 13px; color: var(--ink); opacity: 0.8; text-decoration: none; margin-left: 28px; }
+.nav a.link:hover { opacity: 1; }
+
+/* Hero */
+.hero { text-align: center; padding: 96px 0 88px; }
+.hero h1 {
+  font-size: clamp(42px, 8vw, 80px);
+  line-height: 1.04;
+  font-weight: 700;
+  letter-spacing: -0.045em;
+  max-width: 14ch;
+  margin: 0 auto 22px;
+}
+.hero p { font-size: clamp(19px, 2.6vw, 26px); line-height: 1.3; color: var(--muted); max-width: 30ch; margin: 0 auto 36px; letter-spacing: -0.01em; }
+.cta { display: flex; justify-content: center; gap: 14px; flex-wrap: wrap; }
+
+.pill {
+  display: inline-block; padding: 12px 24px; border-radius: 980px;
+  background: var(--blue); color: #fff; font: 500 17px var(--font);
+  text-decoration: none; border: 0; cursor: pointer; transition: background 0.2s;
+}
+.pill:hover { background: var(--blue-dark); }
+.pill.ghost { background: transparent; color: var(--blue); }
+.pill.ghost:hover { background: rgba(0, 113, 227, 0.08); }
+
+/* Dark feature section */
+.dark { background: #000; color: #F5F5F7; padding: 110px 0; text-align: center; }
+.dark h2 { font-size: clamp(32px, 5.5vw, 56px); line-height: 1.08; letter-spacing: -0.035em; font-weight: 700; max-width: 18ch; margin: 0 auto 70px; }
+.three { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; text-align: left; }
+.tile { background: #1D1D1F; border-radius: 28px; padding: 34px 30px 38px; }
+.tile .ic { width: 46px; height: 46px; border-radius: 14px; background: #2C2C2E; display: grid; place-items: center; font-size: 22px; margin-bottom: 70px; }
+.tile h3 { font-size: 24px; letter-spacing: -0.02em; margin-bottom: 8px; }
+.tile p { color: #A1A1A6; font-size: 16px; line-height: 1.45; }
+
+/* Tool */
+.tool { background: var(--grey); padding: 110px 0; }
+.tool .head { text-align: center; margin-bottom: 48px; }
+.tool .head h2 { font-size: clamp(32px, 5.5vw, 56px); letter-spacing: -0.035em; line-height: 1.08; font-weight: 700; margin-bottom: 14px; }
+.tool .head p { color: var(--muted); font-size: 21px; letter-spacing: -0.01em; }
+
+.card { background: #fff; border-radius: 28px; padding: 40px; max-width: 680px; margin: 0 auto 24px; box-shadow: 0 2px 12px rgba(0, 0, 0, 0.04); }
+
+label { display: block; font-size: 14px; font-weight: 600; margin: 24px 0 8px; }
+.upload {
+  display: block; margin: 0; padding: 38px 20px; text-align: center; cursor: pointer;
+  border: 1.5px dashed var(--line); border-radius: 18px; background: var(--grey);
+  transition: all 0.2s;
+}
+.upload:hover, .upload.on { border-color: var(--blue); background: #F0F6FD; }
+.upload .plus { font-size: 34px; font-weight: 300; color: var(--blue); line-height: 1; margin-bottom: 8px; }
+.upload strong { display: block; font-size: 19px; font-weight: 600; letter-spacing: -0.01em; }
+.upload span { font-size: 14px; color: var(--muted); font-weight: 400; }
+.upload input { position: absolute; opacity: 0; width: 1px; height: 1px; }
+.upload:focus-within { outline: 3px solid var(--blue); outline-offset: 3px; }
+
+.row { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+select, textarea {
+  width: 100%; font: 17px var(--font); color: var(--ink); background: #fff;
+  padding: 14px 16px; border: 1px solid var(--line); border-radius: 12px;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+select:focus, textarea:focus { outline: none; border-color: var(--blue); box-shadow: 0 0 0 4px rgba(0, 113, 227, 0.18); }
+textarea { min-height: 120px; resize: vertical; }
+
+.card .pill { width: 100%; margin-top: 30px; padding: 16px; font-size: 18px; }
+.note { margin-top: 16px; text-align: center; font-size: 13px; color: var(--muted); }
+
+/* Result */
+.verdict { text-align: center; padding: 10px 0 30px; border-bottom: 1px solid var(--line); margin-bottom: 8px; }
+.verdict small { font-size: 14px; font-weight: 600; color: var(--muted); }
+.verdict h2 { font-size: clamp(40px, 8vw, 64px); letter-spacing: -0.04em; line-height: 1.05; margin: 6px 0 12px; }
+.verdict p { color: var(--muted); font-size: 19px; max-width: 34ch; margin: 0 auto; line-height: 1.35; }
+.verdict.repair h2 { color: var(--green); }
+.verdict.service h2 { color: var(--orange); }
+.verdict.replace h2 { color: var(--red); }
+
+h3.sec { font-size: 21px; letter-spacing: -0.02em; margin: 34px 0 14px; }
+.fault { margin-bottom: 14px; }
+.fault div { display: flex; justify-content: space-between; font-size: 16px; }
+.fault div span:last-child { color: var(--muted); }
+.bar-bg { height: 6px; border-radius: 6px; background: var(--grey); margin-top: 7px; overflow: hidden; }
+.bar-bg i { display: block; height: 100%; border-radius: 6px; background: var(--blue); }
+
+.two { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+.stat { background: var(--grey); border-radius: 18px; padding: 20px; }
+.stat b { display: block; font-size: 30px; letter-spacing: -0.03em; line-height: 1.1; }
+.stat small { color: var(--muted); font-size: 14px; }
+.meter { display: flex; gap: 5px; margin-top: 10px; }
+.meter i { flex: 1; height: 6px; border-radius: 6px; background: var(--line); }
+.meter i.f { background: var(--blue); }
+
+ol { margin-left: 22px; }
+ol li { margin-bottom: 10px; padding-left: 4px; }
+.warn { margin-top: 24px; padding: 16px 18px; border-radius: 14px; background: #FFF8E5; color: #6B4E00; font-size: 15px; }
+
+footer { background: var(--grey); text-align: center; padding: 0 24px 50px; font-size: 13px; color: var(--muted); }
+
+[hidden] { display: none !important; }
+
+@media (max-width: 760px) {
+  .three { grid-template-columns: 1fr; }
+  .tile .ic { margin-bottom: 30px; }
+  .card { padding: 26px; border-radius: 22px; }
+  .row, .two { grid-template-columns: 1fr; gap: 0; }
+  .two { gap: 14px; }
+  .hero { padding: 64px 0; }
+  .dark, .tool { padding: 76px 0; }
+  .nav a.link { display: none; }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .hero h1, .hero p, .cta { animation: up 0.8s cubic-bezier(0.2, 0.7, 0.2, 1) both; }
+  .hero p { animation-delay: 0.1s; }
+  .cta { animation-delay: 0.2s; }
+  .result { animation: up 0.5s cubic-bezier(0.2, 0.7, 0.2, 1); }
+  @keyframes up { from { opacity: 0; transform: translateY(18px); } }
+}
+</style>
+</head>
+
+<body>
+
+<nav class="nav">
+  <div class="container">
+    <a class="logo" href="#">RepairEx</a>
+    <div>
+      <a class="link" href="#how">How it works</a>
+      <a class="link" href="#diagnose">Diagnose</a>
+    </div>
+  </div>
+</nav>
+
+<header class="hero container">
+  <h1>Fix it. Or don't.</h1>
+  <p>Know before you spend. Your device, diagnosed in seconds.</p>
+  <div class="cta">
+    <a class="pill" href="#diagnose">Start a diagnosis</a>
+    <a class="pill ghost" href="#how">See how it works</a>
+  </div>
+</header>
+
+<section class="dark" id="how">
+  <div class="container">
+    <h2>A repair expert in your pocket.</h2>
+    <div class="three">
+      <div class="tile">
+        <div class="ic">📷</div>
+        <h3>Show it</h3>
+        <p>Upload a photo or video, or just describe what's going wrong.</p>
+      </div>
+      <div class="tile">
+        <div class="ic">🔍</div>
+        <h3>Find the fault</h3>
+        <p>See the most likely causes, ranked, with safe steps to try first.</p>
+      </div>
+      <div class="tile">
+        <div class="ic">✓</div>
+        <h3>Get a clear answer</h3>
+        <p>Repair it, get it serviced, or replace it. Backed by a cost check.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="tool" id="diagnose">
+  <div class="container">
+    <div class="head">
+      <h2>Let's take a look.</h2>
+      <p>Tell us about your device.</p>
+    </div>
+
+    <div class="card">
+      <label class="upload" id="drop" style="margin-top:0">
+        <input type="file" id="file" accept="image/*,video/*">
+        <div class="plus">+</div>
+        <strong>Add a photo or video</strong>
+        <span id="fname">Click to browse or drag a file here</span>
+      </label>
+
+      <div class="row">
+        <div>
+          <label for="type">Device</label>
+          <select id="type">
+            <option value="phone">Phone or tablet</option>
+            <option value="laptop">Laptop or computer</option>
+            <option value="home">Home appliance</option>
+            <option value="audio">Audio or TV</option>
+          </select>
+        </div>
+        <div>
+          <label for="age">Age</label>
+          <select id="age">
+            <option value="1">Under 1 year</option>
+            <option value="3" selected>1 to 3 years</option>
+            <option value="6">3 to 6 years</option>
+            <option value="9">Over 6 years</option>
+          </select>
+        </div>
+      </div>
+
+      <label for="desc">What is happening?</label>
+      <textarea id="desc" placeholder="The battery drains in two hours and the phone gets warm while charging."></textarea>
+
+      <button class="pill" id="go" type="button">Diagnose my device</button>
+      <p class="note">Always unplug a device before opening it.</p>
+    </div>
+
+    <div class="card result" id="result" aria-live="polite" hidden>
+      <div class="verdict" id="verdict">
+        <small>Our recommendation</small>
+        <h2 id="vword"></h2>
+        <p id="vwhy"></p>
+      </div>
+
+      <h3 class="sec">Likely faults</h3>
+      <div id="faults"></div>
+
+      <h3 class="sec">At a glance</h3>
+      <div class="two">
+        <div class="stat"><small>Repair difficulty</small><b id="lvl"></b><div class="meter" id="meter"></div></div>
+        <div class="stat"><small>Repair vs. replace</small><b><span id="c1"></span> / <span id="c2"></span></b></div>
+      </div>
+
+      <h3 class="sec">Try these first</h3>
+      <ol id="steps"></ol>
+      <p class="warn" id="warn"></p>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <p>RepairEx is a prototype. Estimates are guides, not quotes.</p>
+</footer>
+
+<script>
+// Demo logic only. Replace analyse() with a call to your AI backend.
+var DB = {
+  phone: { faults: [["Worn battery", 70], ["Faulty charging port", 20], ["Software issue", 10]],
+    steps: ["Restart the phone and install pending updates.", "Check battery health in Settings.", "Clean the charging port gently with a wooden toothpick.", "Try a different cable and charger."],
+    level: 2, warn: "Stop using the phone if the back is bulging or it gets hot.", repair: 60, replace: 400 },
+  laptop: { faults: [["Blocked fan or dried thermal paste", 55], ["Failing storage drive", 25], ["Faulty RAM", 20]],
+    steps: ["Shut down and remove the charger.", "Blow compressed air through the vents.", "Check temperatures and startup programs.", "Reseat RAM if your model allows it."],
+    level: 3, warn: "Disconnect power and the battery before opening the case.", repair: 90, replace: 700 },
+  home: { faults: [["Blocked filter or drain", 45], ["Worn pump or motor", 35], ["Faulty control board", 20]],
+    steps: ["Unplug the appliance.", "Clean the filter and check hoses for kinks.", "Check the fuse or breaker.", "Look up the error code in the manual."],
+    level: 3, warn: "Never work on a plugged-in appliance or open its power supply.", repair: 120, replace: 550 },
+  audio: { faults: [["Loose connection or cable", 50], ["Blown capacitor", 30], ["Damaged speaker or panel", 20]],
+    steps: ["Try another cable, input and wall socket.", "Unplug for 60 seconds for a full power reset.", "Test with a different source device."],
+    level: 4, warn: "Capacitors can hold a charge after unplugging. Leave internal work to a technician.", repair: 110, replace: 380 }
+};
+
+var $ = function (id) { return document.getElementById(id); };
+var LEVELS = ["Very easy", "Easy", "Moderate", "Hard", "Expert only"];
+
+function analyse(type, age, text) {
+  var d = DB[type], repair = d.repair, level = d.level;
+  if (/water|liquid|spill|crack|smoke|burn/.test(text)) {
+    repair *= 1.8;
+    level = Math.min(5, level + 1);
+  }
+  repair = Math.round(repair);
+  var pct = Math.round((repair / d.replace) * 100), verdict;
+  if (level >= 5 || pct > 60 || age >= 9) {
+    verdict = ["replace", "Replace it", "Repair costs about " + pct + "% of a new one, or the device is near the end of its life."];
+  } else if (level >= 4) {
+    verdict = ["service", "Get it serviced", "Repair is possible but needs a trained technician and the right tools."];
+  } else {
+    verdict = ["repair", "Repair it", "Repair costs about " + pct + "% of a new one and the steps are within reach."];
+  }
+  return { d: d, repair: repair, level: level, verdict: verdict };
+}
+
+function show(r) {
+  $("verdict").className = "verdict " + r.verdict[0];
+  $("vword").textContent = r.verdict[1];
+  $("vwhy").textContent = r.verdict[2];
+
+  $("faults").innerHTML = r.d.faults.map(function (f) {
+    return '<div class="fault"><div><span>' + f[0] + '</span><span>' + f[1] + '%</span></div>' +
+           '<div class="bar-bg"><i style="width:' + f[1] + '%"></i></div></div>';
+  }).join("");
+
+  var m = "";
+  for (var i = 1; i <= 5; i++) m += '<i class="' + (i <= r.level ? "f" : "") + '"></i>';
+  $("meter").innerHTML = m;
+  $("lvl").textContent = LEVELS[r.level - 1];
+
+  $("steps").innerHTML = r.d.steps.map(function (s) { return "<li>" + s + "</li>"; }).join("");
+  $("warn").textContent = "Safety: " + r.d.warn;
+  $("c1").textContent = "$" + r.repair;
+  $("c2").textContent = "$" + r.d.replace;
+
+  $("result").hidden = false;
+  $("result").scrollIntoView({ behavior: "smooth", block: "start" });
+}
+
+$("go").addEventListener("click", function () {
+  show(analyse($("type").value, +$("age").value, $("desc").value.toLowerCase()));
+});
+
+$("file").addEventListener("change", function (e) {
+  $("fname").textContent = e.target.files[0] ? e.target.files[0].name : "Click to browse or drag a file here";
+});
+
+["dragover", "dragleave", "drop"].forEach(function (ev) {
+  $("drop").addEventListener(ev, function (e) {
+    e.preventDefault();
+    $("drop").classList.toggle("on", ev === "dragover");
+    if (ev === "drop" && e.dataTransfer.files[0]) {
+      $("file").files = e.dataTransfer.files;
+      $("fname").textContent = e.dataTransfer.files[0].name;
+    }
+  });
+});
+</script>
+
+</body>
+</html>

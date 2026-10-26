@@ -3,7 +3,7 @@
 # Features multi-scale detection (P3-P5) for both small electrical components (switches/sockets)
 # and large appliances (ceiling fans, laptops).
 
-nc: 4 # ['bulb', 'fan', 'laptop', 'switchboard']
+nc: 5 # ['bulb', 'fan', 'laptop', 'mouse', 'switchboard']
 scales:
   n: [0.33, 0.25, 1024] # Nano variant for lightweight CPU/mobile real-time inference
   s: [0.33, 0.50, 1024]

@@ -22,3 +22,4 @@ computer-vision/outputs/
 
 # Model weights
 *.pt
+.env

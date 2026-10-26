@@ -1,194 +1,191 @@
-"""
-AI Repair Assistant - End-to-End Pipeline
-Bridges Object Detection (YOLO) with the Rule-Based Fault Diagnosis Engine.
+"""End-to-end Repair Before Replace pipeline.
 
-Workflow:
-  1. Accepts an uploaded photo/video of a faulty device.
-  2. Runs YOLO object detection to identify the device type (fan, bulb, switchboard, laptop).
-  3. Prompts for or ingests user-described symptoms.
-  4. Executes the Fault Diagnosis Engine.
-  5. Displays a rich, structured diagnostic report and saves the JSON artifact.
+Flow:
+    optional image -> detect_new.py -> questionaire.py -> fault_engine.py
+
+The questionnaire owns the diagnosis call, so this module deliberately does not
+call the diagnosis engine a second time. Gemini is used when configured; the
+rule-based engine remains the fallback.
 """
 
 from pathlib import Path
-import sys
-import json
+from datetime import datetime, timezone
 import argparse
-from datetime import datetime
+import json
+import sys
 
-import detect
-from fault_engine import engine, FaultDiagnosisEngine
+import detect_new
+from questionaire import run_questionnaire, normalize_device
+from fault_engine import engine
 
 BASE_DIR = Path(__file__).resolve().parent
 OUTPUT_DIR = BASE_DIR / "outputs" / "diagnoses"
 
 
 def print_banner():
-    print("""
-========================================================================
-       REPAIR BEFORE REPLACE - AI HARDWARE FAULT DIAGNOSIS ASSISTANT
-========================================================================
-    """)
+    print("\n" + "=" * 72)
+    print("       REPAIR BEFORE REPLACE - AI HARDWARE FAULT DIAGNOSIS")
+    print("=" * 72)
 
 
-def print_diagnostic_card(report: dict):
-    """Render a clean, human-readable terminal report."""
-    primary = report["primary_diagnosis"]
-    device = report["device"].upper()
+def choose_device():
+    """Prompt for a supported device if image detection cannot identify one."""
+    supported = sorted(engine.get_supported_devices())
+    print("\nSelect the device you want to diagnose:")
+    for index, device in enumerate(supported, start=1):
+        print(f"  {index}. {device.title()}")
 
-    print("\n" + "=" * 70)
-    print(f"  DIAGNOSTIC REPORT: {device}")
-    print("=" * 70)
-
-    # Detection metadata
-    det = report.get("original_detection", {})
-    if det.get("detection_confidence"):
-        conf_pct = round(det["detection_confidence"] * 100, 1)
-        print(f"  [+] Identified Device    : {det['detected_device']} ({conf_pct}% detection confidence)")
-    else:
-        print(f"  [+] Target Device        : {device}")
-
-    print(f"  [+] Reported Symptoms    : \"{report['user_symptoms']}\"")
-    print(f"  [+] Primary Fault        : {primary['fault_title']} (Confidence: {int(primary['confidence_score'] * 100)}%)")
-    print(f"  [+] Severity Level       : {primary['severity']}")
-    print(f"  [+] Repair Complexity    : {primary['repair_complexity']}")
-    print(f"  [+] Recommendation       : >>> {primary['recommendation']} <<<")
-    print(f"  [+] Rationale            : {primary['recommendation_rationale']}")
-    print(f"  [+] Estimated Cost       : {primary['estimated_parts_cost']}")
-    print(f"  [+] Estimated Time       : {primary['estimated_diy_time']}")
-
-    print("\n" + "-" * 70)
-    print("  CRITICAL SAFETY INSTRUCTIONS:")
-    print("-" * 70)
-    for warn in primary["safety_warnings"]:
-        print(f"  [!] {warn}")
-
-    print("\n" + "-" * 70)
-    print("  STEP-BY-STEP SAFE TROUBLESHOOTING:")
-    print("-" * 70)
-    for step in primary["troubleshooting_steps"]:
-        print(f"  {step}")
-
-    print("\n" + "-" * 70)
-    print("  REQUIRED TOOLS:")
-    print("-" * 70)
-    print("  " + ", ".join(primary["required_tools"]))
-
-    if report.get("alternative_diagnoses"):
-        print("\n" + "-" * 70)
-        print("  OTHER POSSIBLE FAULTS TO CONSIDER:")
-        print("-" * 70)
-        for alt in report["alternative_diagnoses"]:
-            alt_conf = int(alt["confidence_score"] * 100)
-            print(f"  - {alt['fault_title']} ({alt_conf}% match) -> {alt['recommendation']}")
-
-    print("=" * 70 + "\n")
+    choice = input("\nEnter a number or device name: ").strip()
+    if choice.isdigit() and 1 <= int(choice) <= len(supported):
+        return supported[int(choice) - 1]
+    return normalize_device(choice)
 
 
-def save_diagnostic_report(report: dict, source_name: str = "manual") -> Path:
-    """Save structured diagnosis report to JSON file."""
+def make_questionnaire_detection(image_path=None, device_type=None, detection_result=None):
+    """Adapt detect_new's detections to the input schema expected by questionaire.py."""
+    detections = (detection_result or {}).get("detections", [])
+    findings = [str(item.get("device", "")).strip() for item in detections]
+    findings = [item for item in findings if item]
+
+    confidence = None
+    if detections:
+        confidence = max(float(item.get("confidence", 0.0)) for item in detections)
+
+    # detect_new currently uses a Roboflow laptop-component model. A detection
+    # means the overall device is a laptop, while the classes become visual findings.
+    detected_type = (detection_result or {}).get("device_type")
+    resolved_device = device_type or detected_type
+
+    return {
+        "device_type": resolved_device,
+        "findings": findings,
+        "confidence": confidence,
+        "image_path": str(image_path) if image_path else None,
+    }
+
+
+def print_report(report):
+    """Print a compact report that matches the questionnaire diagnosis schema."""
+    diagnosis = report.get("diagnosis") or {}
+    recommendation = report.get("repair_recommendation") or {}
+
+    print("\n" + "=" * 72)
+    print(f"DIAGNOSTIC REPORT: {report.get('device_type', 'Unknown').upper()}")
+    print("=" * 72)
+    print(f"Visual findings       : {', '.join(report.get('detected_findings') or []) or 'None detected'}")
+    print(f"Primary possible fault: {diagnosis.get('primary_fault', 'Not available')}")
+
+    confidence = diagnosis.get("confidence")
+    if isinstance(confidence, (int, float)):
+        print(f"Diagnosis confidence : {confidence:.0%}")
+
+    print(f"Severity              : {diagnosis.get('severity', 'Not specified')}")
+    print(f"Recommended action    : {recommendation.get('action', 'Not available')}")
+    print(f"Repair complexity     : {recommendation.get('complexity', 'Not specified')}")
+    print(f"Estimated cost        : {recommendation.get('estimated_cost', 'Not available')}")
+    print(f"Estimated time        : {recommendation.get('estimated_time', 'Not available')}")
+
+    if report.get("safety_alert"):
+        print("\n!!! SAFETY ALERT: Stop using the device and follow the safety instructions. !!!")
+
+    safety_instructions = diagnosis.get("safety_instructions") or []
+    if safety_instructions:
+        print("\nSAFETY INSTRUCTIONS")
+        for item in safety_instructions:
+            print(f"  - {item}")
+
+    steps = diagnosis.get("troubleshooting_steps") or []
+    if steps:
+        print("\nTROUBLESHOOTING STEPS")
+        for index, step in enumerate(steps, start=1):
+            print(f"  {index}. {step}")
+
+    tools = recommendation.get("required_tools") or []
+    if tools:
+        print("\nREQUIRED TOOLS")
+        print("  " + ", ".join(map(str, tools)))
+
+    alternatives = diagnosis.get("secondary_faults") or []
+    if alternatives:
+        print("\nOTHER POSSIBLE FAULTS")
+        for item in alternatives:
+            print(f"  - {item.get('fault_title', item.get('fault_id', 'Possible fault'))}: "
+                  f"{item.get('recommendation', 'Further inspection needed')}")
+
+    print("=" * 72)
+
+
+def save_report(report, source_name="manual"):
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    clean_stem = Path(source_name).stem
-    out_file = OUTPUT_DIR / f"{clean_stem}_{timestamp}_diagnosis.json"
-
-    with open(out_file, "w", encoding="utf-8") as f:
-        json.dump(report, f, indent=2)
-
-    return out_file
+    safe_stem = Path(source_name).stem or "diagnosis"
+    output_path = OUTPUT_DIR / f"{safe_stem}_{timestamp}_diagnosis.json"
+    with output_path.open("w", encoding="utf-8") as file:
+        json.dump(report, file, indent=2, ensure_ascii=False, default=str)
+    return output_path
 
 
-def run_pipeline(image_path: str = None, device_type: str = None, symptoms: str = None):
+def run_pipeline(image_path=None, device_type=None, confidence=0.25):
+    """Run detection (if possible), questionnaire, diagnosis, and JSON export."""
     print_banner()
+    source_image = Path(image_path).expanduser().resolve() if image_path else None
+    detection_result = None
 
-    detected_device = None
-    detection_conf = None
-    detection_box = None
-
-    # Step 1: Object detection if image is provided
-    if image_path:
-        print(f"[STEP 1] Running visual object detection on: {image_path}...")
+    if source_image:
+        if not source_image.is_file():
+            raise FileNotFoundError(f"Image file not found: {source_image}")
+        print(f"[STEP 1/3] Detecting device/components in {source_image.name}...")
         try:
-            det_result = detect.detect_image(image_path)
-            detections = det_result.get("detections", [])
+            detection_result = detect_new.detect_image(str(source_image), conf=confidence)
+        except Exception as error:
+            print(f"[WARNING] Visual detection could not run: {error}")
+            print("          You can continue by selecting the device manually.")
 
-            if detections:
-                top_det = max(detections, key=lambda x: x["confidence"])
-                detected_device = top_det["device"]
-                detection_conf = top_det["confidence"]
-                detection_box = top_det["box"]
-                print(f"[SUCCESS] Detected Device: '{detected_device}' (Confidence: {round(detection_conf * 100, 1)}%)")
-            else:
-                print("[WARNING] No device detected with high confidence in the image.")
-        except Exception as e:
-            print(f"[ERROR] Object detection failed: {e}")
-
-    # Step 2: Resolve device type
-    if not detected_device:
-        if device_type:
-            detected_device = device_type
-        else:
-            print("\nPlease select or type the faulty device:")
-            supported = engine.get_supported_devices()
-            for idx, dev in enumerate(supported, 1):
-                print(f"  {idx}. {dev.capitalize()}")
-            choice = input("\nEnter number or device name: ").strip()
-            if choice.isdigit() and 1 <= int(choice) <= len(supported):
-                detected_device = supported[int(choice) - 1]
-            else:
-                detected_device = choice
-
-    # Step 3: Collect user symptoms
-    if not symptoms:
-        print(f"\n[STEP 2] Describe the issue with the {detected_device}:")
-        print("  1. Type free-form description (e.g. 'Fan hums but won't spin unless pushed')")
-        print("  2. Or choose from common symptom checklist")
-        mode = input("\nSelect option (1 for text, 2 for checklist) [default: 1]: ").strip()
-
-        if mode == "2":
-            checklist = engine.get_device_symptom_checklist(detected_device)
-            print("\nCommon Symptoms:")
-            for idx, item in enumerate(checklist, 1):
-                print(f"  [{idx}] {item}")
-            selection = input("\nEnter symptom numbers separated by commas (e.g. 1, 3): ").strip()
-            selected_items = []
-            for num in selection.split(","):
-                num = num.strip()
-                if num.isdigit() and 1 <= int(num) <= len(checklist):
-                    selected_items.append(checklist[int(num) - 1])
-            symptoms = " ".join(selected_items) if selected_items else "Device is not operating properly."
-        else:
-            symptoms = input("\nEnter symptom description: ").strip()
-            if not symptoms:
-                symptoms = "Device not functioning."
-
-    # Step 4: Run Fault Diagnosis Engine
-    print("\n[STEP 3] Running deterministic fault diagnosis...")
-    report = engine.diagnose(
-        device=detected_device,
-        user_symptoms=symptoms,
-        detection_confidence=detection_conf,
-        detection_bbox=detection_box
+    detection_payload = make_questionnaire_detection(
+        image_path=source_image,
+        device_type=device_type,
+        detection_result=detection_result,
     )
 
-    # Step 5: Render and save
-    print_diagnostic_card(report)
-    saved_path = save_diagnostic_report(report, source_name=image_path or detected_device)
-    print(f"[INFO] Full structured report saved to: {saved_path}")
+    if not detection_payload.get("device_type"):
+        if detection_payload.get("findings"):
+            detection_payload["device_type"] = "laptop"
+        else:
+            detection_payload["device_type"] = choose_device()
 
+    print("\n[STEP 2/3] Answer the symptom and safety questions.")
+    print("[STEP 3/3] Generating diagnosis (Gemini when configured; rule-based fallback otherwise)...")
+
+    # run_questionnaire performs the diagnosis internally. Do not call the engine
+    # again here, or the user will pay for/receive duplicate Gemini requests.
+    report = run_questionnaire(
+        detection_payload,
+        image_path=str(source_image) if source_image else None,
+        run_diagnosis=True,
+    )
+
+    print_report(report)
+    saved_path = save_report(report, source_name=str(source_image or detection_payload["device_type"]))
+    print(f"\n[INFO] Full JSON report saved to: {saved_path}")
     return report
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Repair Before Replace - AI Hardware Fault Diagnosis Assistant")
-    parser.add_argument("--image", "-i", help="Path to image of the faulty device")
-    parser.add_argument("--device", "-d", help="Explicit device type (fan, bulb, switchboard, laptop)")
-    parser.add_argument("--symptoms", "-s", help="Text description of the symptoms / failure")
+    parser = argparse.ArgumentParser(
+        description="Repair Before Replace - AI hardware fault diagnosis assistant"
+    )
+    parser.add_argument("--image", "-i", help="Path to the faulty device image")
+    parser.add_argument("--device", "-d", help="Device type (overrides automatic device type)")
+    parser.add_argument("--confidence", type=float, default=0.25,
+                        help="Object detection confidence threshold (default: 0.25)")
     args = parser.parse_args()
 
-    run_pipeline(image_path=args.image, device_type=args.device, symptoms=args.symptoms)
+    try:
+        run_pipeline(image_path=args.image, device_type=args.device, confidence=args.confidence)
+    except (FileNotFoundError, ValueError) as error:
+        print(f"[ERROR] {error}", file=sys.stderr)
+        raise SystemExit(1)
 
 
 if __name__ == "__main__":
     main()
-

@@ -17,6 +17,9 @@ Combines object detection results with user-reported symptoms to produce:
 
 from typing import Dict, List, Any, Optional
 import re
+import os
+import json
+from pathlib import Path
 from dataclasses import dataclass, asdict
 
 
@@ -564,6 +567,122 @@ KNOWLEDGE_BASE: Dict[str, List[FaultRule]] = {
                 ["fuse", "blown"]
             ]
         )
+    ],
+
+    # =======================================================================
+    # 5. MOUSE / POINTING DEVICE (Wired / Wireless / Bluetooth)
+    # =======================================================================
+    "mouse": [
+        FaultRule(
+            fault_id="MOUSE_DOUBLE_CLICK_MICROSWITCH",
+            title="Worn-Out Left/Right Button Microswitch (Double-Click on Single Click)",
+            severity="MEDIUM",
+            complexity="Medium (Intermediate)",
+            recommendation="REPAIR (DIY Solder) / REPLACE (New Mouse)",
+            rationale="The tactile microswitch inside the mouse button loses its spring-return force after ~1-3 million actuations, causing a ghost secondary click on every physical press.",
+            required_tools=["Soldering Iron", "Desoldering Pump or Braid", "Replacement OMRON D2FC-F-7N Microswitch", "Small Phillips Screwdriver"],
+            estimated_cost="\u20b930 - \u20b9120 (Microswitch) or \u20b9400 (New basic mouse)",
+            estimated_time="20 - 40 minutes",
+            safety_warnings=[
+                "Unplug the mouse (or remove batteries for wireless) before opening.",
+                "Identify the exact PCB microswitch model number before ordering: D2FC-F-7N (10M) for Omron, or TTC Gold for smoother feel."
+            ],
+            troubleshooting_steps=[
+                "1. Verify the fault: Open any text editor and single-click; if text gets selected (double-click highlight), the microswitch is the culprit.",
+                "2. Go to Mouse Settings -> Test mouse buttons to confirm the ghosting.",
+                "3. Remove the mouse feet (adhesive pads on the bottom) to find hidden screws.",
+                "4. Pry open the mouse shell gently with a spudger.",
+                "5. Locate the two front microswitches on the PCB.",
+                "6. Heat the two solder pads of the faulty switch from the PCB underside and remove the old switch.",
+                "7. Solder in the new OMRON D2FC-F-7N microswitch and reassemble.",
+                "8. Test clicking in the OS mouse button diagnostics tool."
+            ],
+            positive_keywords=["double click", "double clicking", "double-click", "single click selects", "drag and drop fails", "misclick", "unintended double", "clicking twice", "ghost click", "self clicking"],
+            negative_keywords=["scroll", "sensor", "cursor"],
+            common_symptoms=[
+                "Single physical click registers as two rapid clicks",
+                "Drag-and-drop randomly releases mid-drag",
+                "Files/folders open on single click instead of requiring a double-click"
+            ],
+            co_occurrence_patterns=[
+                ["double", "click"],
+                ["single", "select"],
+                ["drag", "drop"],
+                ["ghost", "click"]
+            ]
+        ),
+        FaultRule(
+            fault_id="MOUSE_SENSOR_STUTTER",
+            title="Optical/Laser Sensor Contamination or Surface Incompatibility",
+            severity="LOW",
+            complexity="Low (Beginner)",
+            recommendation="REPAIR (DIY Clean)",
+            rationale="Dust, lint, or oil accumulation on the sensor lens causes erratic cursor jumps. A simple clean restores perfect tracking.",
+            required_tools=["Compressed Air Can", "Cotton Swab", "99% Isopropyl Alcohol", "Lint-Free Cloth"],
+            estimated_cost="\u20b90 ($0)",
+            estimated_time="5 minutes",
+            safety_warnings=[
+                "Do not use excessive liquid on the sensor; one lightly-dampened cotton swab is sufficient.",
+                "Use an appropriate mouse pad (solid non-reflective surface). Glass and mirror surfaces confuse laser sensors."
+            ],
+            troubleshooting_steps=[
+                "1. Lift the mouse and observe the sensor LED glow. If it flickers or is dim, dust is blocking the lens.",
+                "2. Blow one short burst of compressed air directly into the sensor opening.",
+                "3. Lightly dab a cotton swab in isopropyl alcohol and gently wipe the sensor lens in a circular motion.",
+                "4. Allow 30 seconds for alcohol to evaporate.",
+                "5. Test on a high-contrast mouse pad (light gray or cloth recommended).",
+                "6. If cursor still stutters on any surface, the sensor ASIC may be internally damaged."
+            ],
+            positive_keywords=["cursor jumping", "jumping cursor", "stuttering", "stutter", "freezing cursor", "cursor freeze", "sensor", "erratic movement", "random cursor", "drift", "glitching cursor", "tracking issue"],
+            negative_keywords=["click", "scroll", "battery"],
+            common_symptoms=[
+                "Cursor jumps or teleports randomly while moving the mouse",
+                "Cursor freezes momentarily then catches up",
+                "Mouse works fine on cloth pad but stutters on hard desk surface"
+            ],
+            co_occurrence_patterns=[
+                ["cursor", "jump"],
+                ["stutter", "move"],
+                ["freeze", "cursor"],
+                ["erratic", "movement"]
+            ]
+        ),
+        FaultRule(
+            fault_id="MOUSE_SCROLL_WHEEL_SKIP",
+            title="Dirty or Worn Scroll Wheel Encoder",
+            severity="LOW",
+            complexity="Low (Beginner)",
+            recommendation="REPAIR (DIY Clean or Encoder Swap)",
+            rationale="Rotary encoder inside the scroll wheel accumulates dust and graphite causing it to skip steps or scroll in reverse. A cleaning or \u20b920 encoder swap fixes it.",
+            required_tools=["Compressed Air Can", "Cotton Swab", "99% Isopropyl Alcohol", "Screwdriver (for encoder swap)"],
+            estimated_cost="\u20b90 (clean) or \u20b920 - \u20b960 (new encoder)",
+            estimated_time="10 - 20 minutes",
+            safety_warnings=[
+                "Disconnect the mouse before opening the shell.",
+                "Do not spin the scroll wheel at high speed with the encoder exposed; the encoder teeth are delicate."
+            ],
+            troubleshooting_steps=[
+                "1. Confirm the fault: open a long webpage and scroll slowly. If it jumps multiple lines per notch or scrolls backward, the encoder is failing.",
+                "2. Spray a short burst of compressed air around the scroll wheel gap from both sides.",
+                "3. If available, apply a tiny drop of electronics contact cleaner (Deoxit D5) around the encoder shaft.",
+                "4. Scroll the wheel rapidly 20-30 times to distribute the cleaner inside the encoder.",
+                "5. Wait 5 minutes and test. If skipping continues, open the mouse shell.",
+                "6. Desolder the rotary encoder (3 or 5 pin) and replace with an identical part."
+            ],
+            positive_keywords=["scroll", "scrolling", "scroll skips", "scroll jumps", "scroll backwards", "reverse scroll", "scroll not smooth", "wheel skip", "wheel jump", "encoder"],
+            negative_keywords=["click", "cursor", "sensor"],
+            common_symptoms=[
+                "Scroll wheel skips or jumps multiple lines per single notch click",
+                "Page scrolls in the opposite direction unexpectedly",
+                "Scroll wheel feels gritty, resistant, or produces scratchy sound while rolling"
+            ],
+            co_occurrence_patterns=[
+                ["scroll", "skip"],
+                ["scroll", "backwards"],
+                ["wheel", "jump"],
+                ["scroll", "rough"]
+            ]
+        )
     ]
 }
 
@@ -592,6 +711,8 @@ class FaultDiagnosisEngine:
             return "bulb"
         if any(term in raw for term in ["switchboard", "switch", "socket", "board", "plug", "mcb"]):
             return "switchboard"
+        if any(term in raw for term in ["mouse", "pointer", "trackpad", "pointing device"]):
+            return "mouse"
         return raw
 
     def extract_symptom_tokens(self, text: str) -> List[str]:
@@ -751,7 +872,141 @@ class FaultDiagnosisEngine:
 
         return result
 
-    def diagnose_questionnaire(self, questionnaire_payload: Dict[str, Any]) -> Dict[str, Any]:
+    def _diagnose_with_gemini(
+        self,
+        questionnaire_payload: Dict[str, Any],
+        image_path: Optional[str] = None,
+    ) -> Optional[Dict[str, Any]]:
+        """
+        Use Gemini Flash for a fast symptom-aware diagnosis.
+        Returns None when Gemini is not configured or fails, allowing the
+        deterministic knowledge base below to act as a fallback.
+        """
+        api_key = os.getenv("GEMINI_API_KEY")
+        if not api_key:
+            return None
+
+        try:
+            from google import genai
+            from google.genai import types
+
+            device = questionnaire_payload.get("device_type", "unknown")
+            findings = questionnaire_payload.get("detected_findings", [])
+            answers = questionnaire_payload.get("answers", {})
+            model = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
+
+            prompt = f"""
+You are the diagnostic assistant in a device repair application.
+Diagnose cautiously using the detected device, visual detections, and user questionnaire.
+Do not claim certainty when symptoms are inconclusive. Do not invent measurements,
+parts, or costs. Give only safe, non-invasive troubleshooting. Never instruct users
+to open mains electrical equipment, handle capacitors, work on live circuits, or open
+swollen batteries. If smoke, sparks, burning smell, electric shock, liquid exposure,
+or a swollen battery is reported, make the device safe to stop using and recommend a
+qualified professional.
+
+Return ONLY valid JSON with this exact structure:
+{{
+  "primary_fault": "likely fault in plain language",
+  "confidence": 0.0,
+  "severity": "LOW|MEDIUM|HIGH|CRITICAL|UNKNOWN",
+  "reasoning": "brief explanation grounded in the evidence",
+  "supporting_evidence": ["evidence"],
+  "alternative_faults": ["possible alternative"],
+  "safety_alert": false,
+  "requires_professional_attention": false,
+  "safety_instructions": ["precaution"],
+  "troubleshooting_steps": ["safe, non-invasive step"],
+  "recommendation": "REPAIR (DIY)|SERVICE (Professional)|REPLACE|STOP USING AND SEEK PROFESSIONAL HELP",
+  "complexity": "Low|Medium|High|Dangerous",
+  "estimated_cost": "rough estimate or Unknown",
+  "estimated_time": "rough estimate or Unknown",
+  "required_tools": ["tool or none"],
+  "limitations": "what cannot be confirmed remotely"
+}}
+
+Device: {device}
+Object detector findings: {json.dumps(findings, ensure_ascii=False)}
+Questionnaire answers: {json.dumps(answers, ensure_ascii=False)}
+Detection confidence: {questionnaire_payload.get("detection_confidence")}
+"""
+            contents = [prompt]
+            if image_path:
+                path = Path(image_path).expanduser()
+                if path.is_file():
+                    suffix = path.suffix.lower()
+                    mime = {".jpg": "image/jpeg", ".jpeg": "image/jpeg",
+                            ".png": "image/png", ".webp": "image/webp"}.get(suffix)
+                    if mime:
+                        contents.append(types.Part.from_bytes(
+                            data=path.read_bytes(), mime_type=mime
+                        ))
+
+            client = genai.Client(api_key=api_key)
+            response = client.models.generate_content(
+                model=model,
+                contents=contents,
+                config=types.GenerateContentConfig(
+                    response_mime_type="application/json",
+                    temperature=0.2,
+                    max_output_tokens=1200,
+                ),
+            )
+            diagnosis = json.loads(response.text)
+
+            # Hard safety override: uncertainty ("Not sure") must not be treated
+            # as proof of a hazard, but affirmative hazards/liquid must be escalated.
+            answers_text = json.dumps(answers, ensure_ascii=False).lower()
+            hazard_answer = str(answers.get("hazards", "")).strip().lower()
+            cause_answer = str(answers.get("possible_cause", "")).strip().lower()
+            hazard_terms = ("smoke", "burning smell", "sparks", "electric shock",
+                            "swollen battery", "liquid exposure")
+            hard_hazard = hazard_answer == "yes" or (
+                "liquid exposure" in cause_answer or "water" in cause_answer
+            ) or any(term in answers_text for term in hazard_terms)
+
+            safety_alert = bool(diagnosis.get("safety_alert", False) or hard_hazard)
+            professional = bool(
+                diagnosis.get("requires_professional_attention", False) or hard_hazard
+            )
+            if hard_hazard:
+                safety = diagnosis.get("safety_instructions") or []
+                safety.insert(0, "Stop using the device and disconnect power only if safe. Do not open it; seek qualified service.")
+                diagnosis["safety_instructions"] = list(dict.fromkeys(safety))
+
+            result = dict(questionnaire_payload)
+            result["safety_alert"] = safety_alert
+            result["requires_professional_attention"] = professional
+            result["diagnosis"] = {
+                "primary_fault": str(diagnosis.get("primary_fault", "Cause uncertain")),
+                "fault_id": "GEMINI_DIAGNOSIS",
+                "confidence": max(0.0, min(1.0, float(diagnosis.get("confidence", 0.4)))),
+                "severity": str(diagnosis.get("severity", "UNKNOWN")).upper(),
+                "reasoning": str(diagnosis.get("reasoning", "")),
+                "supporting_evidence": diagnosis.get("supporting_evidence", []),
+                "secondary_faults": diagnosis.get("alternative_faults", []),
+                "safety_instructions": diagnosis.get("safety_instructions", []),
+                "troubleshooting_steps": diagnosis.get("troubleshooting_steps", []),
+                "limitations": str(diagnosis.get("limitations", "")),
+            }
+            result["repair_recommendation"] = {
+                "action": diagnosis.get("recommendation", "SERVICE (Professional)"),
+                "complexity": diagnosis.get("complexity", "Unknown"),
+                "rationale": diagnosis.get("reasoning", ""),
+                "estimated_cost": diagnosis.get("estimated_cost", "Unknown"),
+                "estimated_time": diagnosis.get("estimated_time", "Unknown"),
+                "required_tools": diagnosis.get("required_tools", []),
+            }
+            result["diagnosis_provider"] = "gemini"
+            return result
+
+        except Exception as error:
+            # Do not expose credentials or block the app if the API is unavailable.
+            result = dict(questionnaire_payload)
+            result["gemini_error"] = f"Gemini diagnosis unavailable; used rule-based fallback ({type(error).__name__})."
+            return None
+
+    def diagnose_questionnaire(self, questionnaire_payload: Dict[str, Any], image_path: Optional[str] = None, use_gemini: bool = True) -> Dict[str, Any]:
         """
         Takes a questionnaire output payload (with device_type, detected_findings, answers)
         and populates:
@@ -761,6 +1016,11 @@ class FaultDiagnosisEngine:
           - 'repair_recommendation': actionable recommendation object with cost & complexity
         """
         result = dict(questionnaire_payload)
+        if use_gemini:
+            gemini_result = self._diagnose_with_gemini(questionnaire_payload, image_path=image_path)
+            if gemini_result is not None:
+                return gemini_result
+
         device = result.get("device_type", "laptop")
         findings = result.get("detected_findings", [])
         answers = result.get("answers", {})
@@ -886,8 +1146,14 @@ def run_diagnosis(device: str, symptoms: str) -> Dict[str, Any]:
     return engine.diagnose(device=device, user_symptoms=symptoms)
 
 
-def process_questionnaire(questionnaire_data: Dict[str, Any]) -> Dict[str, Any]:
-    """Integrates directly with questionnaire output dictionaries."""
-    return engine.diagnose_questionnaire(questionnaire_data)
+def process_questionnaire(
+    questionnaire_data: Dict[str, Any],
+    image_path: Optional[str] = None,
+    use_gemini: bool = True,
+) -> Dict[str, Any]:
+    """Diagnose questionnaire answers with Gemini, falling back to local rules."""
+    return engine.diagnose_questionnaire(
+        questionnaire_data, image_path=image_path, use_gemini=use_gemini
+    )
 
 

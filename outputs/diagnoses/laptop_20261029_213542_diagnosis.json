@@ -1,0 +1,151 @@
+{
+  "status": "success",
+  "module": "questionnaire",
+  "device_type": "laptop",
+  "detected_findings": [],
+  "detection_confidence": null,
+  "image_path": null,
+  "answers": {
+    "affected_component": "Not sure",
+    "power_state": "Not sure",
+    "startup_signals": "Not sure",
+    "memory_storage": "Not sure / not applicable",
+    "display": "Not sure / not applicable",
+    "temperature": "Not sure",
+    "charging": "Not sure / not applicable",
+    "recent_event": "No known event",
+    "hazards": "Not sure",
+    "duration": "Not sure"
+  },
+  "free_text": "laptop screen is black , but the fan noise can be heard",
+  "safety_alert": false,
+  "requires_professional_attention": false,
+  "diagnosis": {
+    "primary_fault": "Thermal Throttling / Clogged Heatsink / Dried Thermal Paste",
+    "fault_id": "LAPTOP_OVERHEATING_DUST_THERMAL",
+    "confidence": 0.15,
+    "severity": "MEDIUM",
+    "supporting_evidence": [
+      "Reported symptoms directly match indicator terms: fan noise"
+    ],
+    "safe_checks": [
+      "1. Elevate the rear of the laptop by 1 inch on a hard, flat surface to ensure air intakes are unobstructed.",
+      "2. Feel the exhaust vent during use: if the fan is screaming but almost no warm air exits, the heatsink grill is clogged with lint.",
+      "3. Run hardware temperature monitoring software (e.g. HWMonitor, CoreTemp) to verify if CPU/GPU reaches 95°C+."
+    ],
+    "advanced_steps": [
+      "1. Power off, remove bottom cover with precision screwdrivers, and disconnect the battery connector.",
+      "2. Hold the fan blades gently (do not let them over-spin) and blow dust out with compressed air.",
+      "3. Unscrew the copper heatsink assembly in reverse diagonal sequence (4-3-2-1).",
+      "4. Clean old hardened paste from CPU/GPU dies using 99% isopropyl alcohol and a lint-free wipe.",
+      "5. Apply a pea-sized dot of new high-grade thermal paste and reassemble heatsink firmly."
+    ],
+    "safety_instructions": [
+      "Always unplug the battery cable from the motherboard before touching heatsinks or fans.",
+      "Use an anti-static wrist strap or touch a grounded metal object to prevent ESD damage."
+    ],
+    "troubleshooting_steps": [
+      "1. Elevate the rear of the laptop by 1 inch on a hard, flat surface to ensure air intakes are unobstructed.",
+      "2. Feel the exhaust vent during use: if the fan is screaming but almost no warm air exits, the heatsink grill is clogged with lint.",
+      "3. Run hardware temperature monitoring software (e.g. HWMonitor, CoreTemp) to verify if CPU/GPU reaches 95°C+.",
+      "1. Power off, remove bottom cover with precision screwdrivers, and disconnect the battery connector.",
+      "2. Hold the fan blades gently (do not let them over-spin) and blow dust out with compressed air.",
+      "3. Unscrew the copper heatsink assembly in reverse diagonal sequence (4-3-2-1).",
+      "4. Clean old hardened paste from CPU/GPU dies using 99% isopropyl alcohol and a lint-free wipe.",
+      "5. Apply a pea-sized dot of new high-grade thermal paste and reassemble heatsink firmly."
+    ],
+    "secondary_faults": []
+  },
+  "repair_recommendation": {
+    "action": "REPAIR (DIY) / SERVICE (Professional)",
+    "complexity": "Medium (Intermediate)",
+    "rationale": "Cleaning heatsink fins with compressed air and repasting thermal compound restores normal operating temperatures and stops thermal shutdowns.",
+    "estimated_cost": "₹300 - ₹600 ($4 - $8)",
+    "estimated_time": "30 - 45 minutes",
+    "required_tools": [
+      "Precision Screwdriver Set (PH00/T5)",
+      "Compressed Air Can",
+      "High-performance Thermal Paste (Arctic MX-4/Noctua)",
+      "Isopropyl Alcohol (99%)"
+    ]
+  },
+  "created_at": "2026-10-29T16:05:29.539007+00:00",
+  "supported": true,
+  "repair_decision": {
+    "verdict": "SERVICE (technician)",
+    "safety_hold": false,
+    "low_confidence": true,
+    "repair_cost_range": [
+      300,
+      600
+    ],
+    "replacement_cost": 12500.0,
+    "cost_ratio": 0.036,
+    "estimated_saving": 12050,
+    "e_waste": {
+      "status": "avoided",
+      "amount_kg": 2.1,
+      "unit": "kg",
+      "assumption": "Typical laptop mass is estimated at 2.1 kg (editable assumption).",
+      "summary": "Estimated e-waste avoided: ~2.1 kg (estimate based on typical laptop mass)."
+    },
+    "reasons": [
+      "Estimated repair parts cost Rs 300-Rs 600 is 4% of a new device (Rs 12,500).",
+      "Repair is clearly cheaper than replacing the entire device (estimated saving: Rs 12,050).",
+      "Low-confidence note: Diagnosis is inconclusive and requires professional bench testing."
+    ],
+    "decision_factors": [
+      {
+        "factor": "cost_ratio",
+        "repair_cost_mid_inr": 450.0,
+        "replacement_cost_inr": 12500.0,
+        "ratio": 0.036,
+        "threshold_replace": 0.6,
+        "threshold_replace_old": 0.4,
+        "detail": "Repair is 3.6% of replacement cost"
+      },
+      {
+        "factor": "device_age",
+        "age_years": 5.0,
+        "typical_life_years": 5.0,
+        "life_used_ratio": 1.0,
+        "detail": "5 years old (100% of typical 5-yr life)"
+      },
+      {
+        "factor": "safety_hold",
+        "active": false,
+        "severity": "MEDIUM",
+        "detail": "No safety hold"
+      },
+      {
+        "factor": "complexity",
+        "level": "Medium (Intermediate)",
+        "detail": "Complexity: Medium (Intermediate)"
+      },
+      {
+        "factor": "confidence",
+        "diagnostic_confidence": 0.15,
+        "is_low_confidence": true,
+        "detail": "Low-confidence verdict: Diagnosis is inconclusive and requires professional bench testing."
+      }
+    ],
+    "assumptions": [
+      "Replacement price: Rs 12,500 (entered by user)",
+      "Typical lifespan: 5 years; device age: 5 years (user entered)",
+      "Typical laptop mass for e-waste calculations: 2.1 kg (estimate assumption).",
+      "Repair cost is an estimated parts range from knowledge base, not a formal service center quote.",
+      "Part replacement (e.g. replacing an LCD panel or battery) is categorized as repair of the device, not whole-device replacement."
+    ]
+  },
+  "visual_analysis": null,
+  "input_image": null,
+  "decision_inputs": {
+    "device_age_years": 5.0,
+    "replacement_cost_override_inr": 12500.0
+  },
+  "explanation": {
+    "text": "Recommendation: SERVICE (technician). Most likely issue: Thermal Throttling / Clogged Heatsink / Dried Thermal Paste. Estimated repair parts cost Rs 300-Rs 600 is 4% of a new device (Rs 12,500). Repair is clearly cheaper than replacing the entire device (estimated saving: Rs 12,050). Repairing instead of replacing could save about Rs 12,050. Repairing this device avoids an estimated 2.1 kg of e-waste (estimate).",
+    "source": "built-in template",
+    "note": "Gemma unavailable (api: 404 Client Error: Not Found for url: https://generativelanguage.googleapis.com/v1beta/models/gemma-3-27b-it:generateContent)"
+  }
+}

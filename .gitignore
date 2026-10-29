@@ -1,0 +1,26 @@
+# Python cache
+__pycache__/
+*.py[cod]
+
+# Virtual environments
+.venv/
+venv/
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+
+# YOLO datasets and test files
+computer-vision/train/
+computer-vision/valid/
+computer-vision/test/
+computer-vision/test_images/
+computer-vision/test_videos/
+computer-vision/runs/
+computer-vision/outputs/
+
+# Model weights
+*.pt
+.env
+.planning

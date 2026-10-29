@@ -1,0 +1,47 @@
+# Custom Neural Network Architecture for AI Hardware Repair Assistant
+# Targets 4 key appliance categories: bulb, fan, laptop, switchboard
+# Features multi-scale detection (P3-P5) for both small electrical components (switches/sockets)
+# and large appliances (ceiling fans, laptops).
+
+nc: 5 # ['bulb', 'fan', 'laptop', 'mouse', 'switchboard']
+scales:
+  n: [0.33, 0.25, 1024] # Nano variant for lightweight CPU/mobile real-time inference
+  s: [0.33, 0.50, 1024]
+  m: [0.67, 0.75, 768]
+  l: [1.00, 1.00, 512]
+  x: [1.00, 1.25, 512]
+
+# Backbone: CSPDarknet with Spatial Pyramid Pooling Fast (SPPF)
+backbone:
+  # [from, repeats, module, args]
+  - [-1, 1, Conv, [64, 3, 2]]          # 0-P1/2
+  - [-1, 1, Conv, [128, 3, 2]]         # 1-P2/4
+  - [-1, 3, C2f, [128, True]]          # 2
+  - [-1, 1, Conv, [256, 3, 2]]         # 3-P3/8: High-resolution map for fine electrical details (switches/bulbs)
+  - [-1, 6, C2f, [256, True]]          # 4
+  - [-1, 1, Conv, [512, 3, 2]]         # 5-P4/16: Mid-level map for device bodies
+  - [-1, 6, C2f, [512, True]]          # 6
+  - [-1, 1, Conv, [1024, 3, 2]]        # 7-P5/32: High receptive field for fans & larger appliances
+  - [-1, 3, C2f, [1024, True]]         # 8
+  - [-1, 1, SPPF, [1024, 5]]           # 9: Spatial pyramid pooling for cross-scale contextual capture
+
+# Head: PANet (Path Aggregation Network) + Decoupled Anchor-Free Detection Head
+head:
+  - [-1, 1, nn.Upsample, [None, 2, "nearest"]]
+  - [[-1, 6], 1, Concat, [1]]          # 11: Cat backbone P4
+  - [-1, 3, C2f, [512]]                # 12
+
+  - [-1, 1, nn.Upsample, [None, 2, "nearest"]]
+  - [[-1, 4], 1, Concat, [1]]          # 14: Cat backbone P3
+  - [-1, 3, C2f, [256]]                # 15 (P3/8-small components: switchboard toggles, bulb sockets)
+
+  - [-1, 1, Conv, [256, 3, 2]]
+  - [[-1, 12], 1, Concat, [1]]         # 17: Cat head P4
+  - [-1, 3, C2f, [512]]                # 18 (P4/16-medium: laptop chassis, bulb bodies)
+
+  - [-1, 1, Conv, [512, 3, 2]]
+  - [[-1, 9], 1, Concat, [1]]          # 20: Cat head P5
+  - [-1, 3, C2f, [1024]]               # 21 (P5/32-large: ceiling fans, table fans)
+
+  - [[15, 18, 21], 1, Detect, [nc]]    # 22: Decoupled Detect head (P3, P4, P5)
+

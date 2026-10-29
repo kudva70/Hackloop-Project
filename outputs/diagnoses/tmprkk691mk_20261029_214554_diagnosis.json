@@ -1,0 +1,193 @@
+{
+  "status": "success",
+  "module": "questionnaire",
+  "device_type": "laptop",
+  "detected_findings": [
+    "PSU",
+    "SATA SSD",
+    "PSU",
+    "OpenCV visual observation: Burn / scorch marks (high): 2 scorch/charred region(s) covering 6.2% of the device area",
+    "OpenCV visual observation: Crack / scratch lines (medium): 19 off-axis line segments (total length 1.6x image diagonal)"
+  ],
+  "detection_confidence": 0.4006,
+  "image_path": "D:\\Projects\\Hackloop-Project\\outputs\\web_uploads\\tmprkk691mk.jpg",
+  "answers": {
+    "affected_component": "Not sure",
+    "power_state": "Not sure",
+    "startup_signals": "Not sure",
+    "memory_storage": "Not sure / not applicable",
+    "display": "Not sure / not applicable",
+    "temperature": "Not sure",
+    "charging": "Not sure / not applicable",
+    "recent_event": "No known event",
+    "hazards": "Not sure",
+    "duration": "Not sure"
+  },
+  "free_text": "laptop suddenly got off and it is not onning again.When charger is connected the light is blinking",
+  "safety_alert": false,
+  "requires_professional_attention": false,
+  "diagnosis": {
+    "primary_fault": "Faulty Power Adapter / Dead Battery / DC Jack Failure",
+    "fault_id": "LAPTOP_DEAD_BATTERY_CHARGER",
+    "confidence": 0.15,
+    "severity": "MEDIUM",
+    "supporting_evidence": [
+      "Reported symptoms directly match indicator terms: charger"
+    ],
+    "safe_checks": [
+      "1. Perform an EC (Embedded Controller) reset: Unplug charger, hold power button down for 30 full seconds, then release.",
+      "2. Inspect the charger cable for kinks, fraying, or loose pins in the charging connector.",
+      "3. Try plugging into a different confirmed working wall socket without an extension strip.",
+      "4. Check if the LED charging indicator illuminates when the charger is connected."
+    ],
+    "advanced_steps": [
+      "1. Disconnect AC charger and internal battery.",
+      "2. Inspect the internal DC-in power jack harness for cracked solder joints or broken center pin.",
+      "3. Measure DC adapter output voltage with a multimeter to ensure rated output voltage is present."
+    ],
+    "safety_instructions": [
+      "Never use generic unbranded cheap chargers; they can cause voltage spikes and thermal runaway.",
+      "If the charger brick or cable is excessively hot or smells of burnt plastic, unplug immediately."
+    ],
+    "troubleshooting_steps": [
+      "1. Perform an EC (Embedded Controller) reset: Unplug charger, hold power button down for 30 full seconds, then release.",
+      "2. Inspect the charger cable for kinks, fraying, or loose pins in the charging connector.",
+      "3. Try plugging into a different confirmed working wall socket without an extension strip.",
+      "4. Check if the LED charging indicator illuminates when the charger is connected.",
+      "1. Disconnect AC charger and internal battery.",
+      "2. Inspect the internal DC-in power jack harness for cracked solder joints or broken center pin.",
+      "3. Measure DC adapter output voltage with a multimeter to ensure rated output voltage is present."
+    ],
+    "secondary_faults": [
+      {
+        "fault_id": "LAPTOP_PHYSICAL_SCREEN_DAMAGE",
+        "fault_title": "Cracked LCD / OLED Display Panel (Physical Impact)",
+        "confidence_score": 0.15,
+        "recommendation": "REPLACE (Display Panel Assembly)",
+        "supporting_evidence": [
+          "Reported symptoms directly match indicator terms: crack"
+        ]
+      }
+    ]
+  },
+  "repair_recommendation": {
+    "action": "REPAIR (DIY / Replace Adapter)",
+    "complexity": "Low (Beginner)",
+    "rationale": "Replacing an external AC adapter or testing wall power requires no internal laptop teardown.",
+    "estimated_cost": "₹800 - ₹2,500 ($10 - $30)",
+    "estimated_time": "10 - 15 minutes",
+    "required_tools": [
+      "Compatible OEM Charger",
+      "Voltmeter / Multimeter",
+      "Alternative confirmed wall outlet"
+    ]
+  },
+  "created_at": "2026-10-29T16:15:40.949861+00:00",
+  "supported": true,
+  "repair_decision": {
+    "verdict": "SERVICE (technician)",
+    "safety_hold": true,
+    "low_confidence": true,
+    "repair_cost_range": [
+      800,
+      2500
+    ],
+    "replacement_cost": 45000.0,
+    "cost_ratio": 0.037,
+    "estimated_saving": 43350,
+    "e_waste": {
+      "status": "avoided",
+      "amount_kg": 2.1,
+      "unit": "kg",
+      "assumption": "Typical laptop mass is estimated at 2.1 kg (editable assumption).",
+      "summary": "Estimated e-waste avoided: ~2.1 kg (estimate based on typical laptop mass)."
+    },
+    "reasons": [
+      "Safety hazard / critical hardware risk detected (e.g. swollen battery, liquid exposure, or power surge). Immediate professional servicing is required; do not attempt DIY repair.",
+      "Photo analysis: burn / scorch marks (high). 2 scorch/charred region(s) covering 6.2% of the device area.",
+      "Photo analysis: crack / scratch lines (medium). 19 off-axis line segments (total length 1.6x image diagonal).",
+      "Low-confidence note: Diagnosis is inconclusive and requires professional bench testing."
+    ],
+    "decision_factors": [
+      {
+        "factor": "cost_ratio",
+        "repair_cost_mid_inr": 1650.0,
+        "replacement_cost_inr": 45000.0,
+        "ratio": 0.037,
+        "threshold_replace": 0.6,
+        "threshold_replace_old": 0.4,
+        "detail": "Repair is 3.7% of replacement cost"
+      },
+      {
+        "factor": "device_age",
+        "age_years": 5.0,
+        "typical_life_years": 5.0,
+        "life_used_ratio": 1.0,
+        "detail": "5 years old (100% of typical 5-yr life)"
+      },
+      {
+        "factor": "safety_hold",
+        "active": true,
+        "severity": "MEDIUM",
+        "detail": "Safety hazard / critical severity override active"
+      },
+      {
+        "factor": "complexity",
+        "level": "Low (Beginner)",
+        "detail": "Complexity: Low (Beginner)"
+      },
+      {
+        "factor": "confidence",
+        "diagnostic_confidence": 0.15,
+        "is_low_confidence": true,
+        "detail": "Low-confidence verdict: Diagnosis is inconclusive and requires professional bench testing."
+      }
+    ],
+    "assumptions": [
+      "Replacement price: Rs 45,000 (default assumption; override with --replacement-cost)",
+      "Typical lifespan: 5 years; device age: 5 years (user entered)",
+      "Typical laptop mass for e-waste calculations: 2.1 kg (estimate assumption).",
+      "Repair cost is an estimated parts range from knowledge base, not a formal service center quote.",
+      "Part replacement (e.g. replacing an LCD panel or battery) is categorized as repair of the device, not whole-device replacement."
+    ]
+  },
+  "visual_analysis": {
+    "annotated_image": "outputs\\cv\\tmprkk691mk_cv.jpg",
+    "findings": [
+      {
+        "id": "burn_marks",
+        "label": "Burn / scorch marks",
+        "level": "high",
+        "detail": "2 scorch/charred region(s) covering 6.2% of the device area"
+      },
+      {
+        "id": "crack_lines",
+        "label": "Crack / scratch lines",
+        "level": "medium",
+        "detail": "19 off-axis line segments (total length 1.6x image diagonal)"
+      }
+    ],
+    "safety_flag": true,
+    "burn_level": "high",
+    "follow_up_question": null,
+    "quality_warnings": [],
+    "metrics": {
+      "burn_pct": 6.25,
+      "rust_pct": 0.0,
+      "off_axis_lines": 19,
+      "off_axis_length_ratio": 1.62,
+      "blur_score": 808.6,
+      "brightness": 158.0
+    }
+  },
+  "input_image": "D:\\Projects\\Hackloop-Project\\outputs\\web_uploads\\tmprkk691mk.jpg",
+  "decision_inputs": {
+    "device_age_years": 5.0,
+    "replacement_cost_override_inr": null
+  },
+  "explanation": {
+    "text": "Recommendation: SERVICE (technician). Most likely issue: Faulty Power Adapter / Dead Battery / DC Jack Failure. Safety hazard / critical hardware risk detected (e.g. swollen battery, liquid exposure, or power surge). Immediate professional servicing is required; do not attempt DIY repair. Photo analysis: burn / scorch marks (high). 2 scorch/charred region(s) covering 6.2% of the device area. Repairing instead of replacing could save about Rs 43,350. Repairing this device avoids an estimated 2.1 kg of e-waste (estimate). Safety first: unplug the device and do not power it on until a technician has checked it.",
+    "source": "built-in template",
+    "note": "Gemma unavailable (api: 404 Client Error: Not Found for url: https://generativelanguage.googleapis.com/v1beta/models/gemma-3-27b-it:generateContent)"
+  }
+}

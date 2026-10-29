@@ -1,0 +1,17 @@
+{
+  "status": "unsupported_device",
+  "module": "questionnaire",
+  "device_type": "fan",
+  "supported": false,
+  "message": "Device category 'fan' is not supported yet. 'Repair Before Replace' currently provides in-depth diagnosis for Laptops and PCs only.",
+  "safety_advice": [
+    "1. Disconnect the device from mains electrical power and unplug all chargers or batteries before handling.",
+    "2. Never open sealed power supplies, high-voltage sections, or swollen battery packs.",
+    "3. If you notice smoke, sparks, burning smells, or liquid exposure, cease using the device immediately and consult a certified repair professional."
+  ],
+  "safety_alert": false,
+  "requires_professional_attention": false,
+  "diagnosis": null,
+  "repair_recommendation": null,
+  "created_at": "2026-10-29T16:05:13.525241+00:00"
+}

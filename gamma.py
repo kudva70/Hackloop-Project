@@ -60,6 +60,8 @@ def _ask_api(prompt, image_path=None):
 
 def _ask(prompt, image_path=None, backend="auto"):
     errors = []
+    if backend == "template":
+        raise RuntimeError("template backend skips remote models")
     if backend in ("auto", "ollama") and _ollama_up():
         try:
             return _ask_ollama(prompt, image_path), f"Gemma ({OLLAMA_MODEL}, local)"
@@ -79,18 +81,30 @@ def template_explanation(ctx):
     lines.append(f"Most likely issue: {d['fault_title']}. " + " ".join(v["reasons"][:2]))
     if v.get("estimated_saving"):
         lines.append(f"Repairing instead of replacing could save about Rs {v['estimated_saving']:,}.")
-    if v["safety_hold"]:
+    
+    # E-waste impact note
+    ew = ctx.get("e_waste") or v.get("e_waste")
+    if ew:
+        if ew.get("status") == "avoided" and ew.get("amount_kg") is not None:
+            lines.append(f"Repairing this device avoids an estimated {ew['amount_kg']:g} kg of e-waste (estimate).")
+        elif ew.get("status") == "recycling_advice":
+            lines.append("Please recycle responsibly through an authorized e-waste recycler and wipe personal data first.")
+
+    if v.get("safety_hold"):
         lines.append("Safety first: unplug the device and do not power it on until a technician has checked it.")
     return " ".join(lines)
 
 
 def explain(ctx, backend="auto"):
     """ctx: dict with device, symptoms, visual_findings, diagnosis (primary), verdict."""
+    if backend == "template":
+        return {"text": template_explanation(ctx), "source": "built-in template"}
     prompt = (
         "You are explaining a device repair assessment to a non-technical person.\n"
         "Use ONLY the facts in the JSON below. Do not add faults, parts, prices or advice that are not in it. "
         "Write 3 to 5 short plain sentences. Start with the recommendation. "
-        "If safety_hold is true, end with a clear instruction to unplug the device and see a technician.\n\n"
+        "If safety_hold is true, end with a clear instruction to unplug the device and see a technician. "
+        "If an e-waste estimate is present, mention it and state that figures are estimates.\n\n"
         f"FACTS:\n{json.dumps(ctx, indent=2, default=str)}"
     )
     try:

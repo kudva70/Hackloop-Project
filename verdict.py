@@ -23,6 +23,15 @@ DEVICE_DEFAULTS = {            # replacement_cost in INR, life in years (assumpt
 }
 GENERIC = {"replacement_cost": 5000, "life_years": 6}
 
+# Typical device weight in kilograms (assumption, editable)
+DEVICE_MASS_KG = {
+    "laptop": 2.1,      # Average notebook/laptop mass
+    "fan": 3.5,         # Ceiling / table fan
+    "bulb": 0.1,        # LED bulb
+    "switchboard": 0.3, # Switchboard assembly
+}
+DEFAULT_DEVICE_MASS_KG = 2.0
+
 # Decision thresholds
 REPLACE_RATIO = 0.60           # repair costs >= 60% of a new device -> REPLACE (device)
 REPLACE_RATIO_OLD = 0.40       # ... or >= 40% when the device is already past 70% of typical life
@@ -30,8 +39,13 @@ OLD_LIFE_USED = 0.70           # 70% of lifespan
 
 
 def parse_cost(text: Optional[str]) -> Tuple[Optional[int], Optional[int]]:
-    """'Rs 500 - Rs 1,500' -> (500, 1500). Returns (None, None) if no numbers found."""
-    nums = [int(n.replace(",", "")) for n in re.findall(r"\d[\d,]*", str(text or "")) if n.replace(",", "")]
+    """Parse only integers that follow ₹ or Rs (case-insensitive). Ignore $ amounts.
+
+    '₹500 ($6)' -> (500, 500); '₹1,500 - ₹5,000 ($20 - $60)' -> (1500, 5000).
+    Returns (None, None) if no INR figures are found.
+    """
+    matches = re.findall(r"(?:₹|rs)\s*(\d[\d,]*)", str(text or ""), flags=re.IGNORECASE)
+    nums = [int(n.replace(",", "")) for n in matches]
     if not nums:
         return None, None
     return min(nums[:2]), max(nums[:2])
@@ -171,6 +185,32 @@ def decide(
         }
     ]
 
+    # 3. E-waste impact assessment (estimates)
+    dev_key = str(device).lower()
+    dev_mass = DEVICE_MASS_KG.get(dev_key, DEFAULT_DEVICE_MASS_KG)
+
+    if verdict in ("REPAIR (DIY)", "SERVICE (technician)"):
+        e_waste = {
+            "status": "avoided",
+            "amount_kg": round(dev_mass, 2),
+            "unit": "kg",
+            "assumption": f"Typical {dev_key} mass is estimated at {dev_mass:g} kg (editable assumption).",
+            "summary": f"Estimated e-waste avoided: ~{dev_mass:g} kg (estimate based on typical {dev_key} mass).",
+        }
+    else:
+        e_waste = {
+            "status": "recycling_advice",
+            "amount_kg": None,
+            "unit": "kg",
+            "assumption": f"Typical {dev_key} mass is estimated at {dev_mass:g} kg (editable assumption).",
+            "advice": (
+                "Do not dispose of this device in household trash. Hand it over to an authorized e-waste recycler "
+                "or manufacturer take-back channel. Ensure personal data is removed (securely wipe or extract storage drives) "
+                "before handing over for recycling."
+            ),
+            "summary": "Recycling advice: Hand over to an authorized e-waste recycler (do not bin); wipe personal data from storage (estimate).",
+        }
+
     return {
         "verdict": verdict,
         "safety_hold": safety_hold,
@@ -179,11 +219,13 @@ def decide(
         "replacement_cost": replacement,
         "cost_ratio": round(ratio, 3) if ratio is not None else None,
         "estimated_saving": saving,
+        "e_waste": e_waste,
         "reasons": reasons,
         "decision_factors": decision_factors,
         "assumptions": [
             f"Replacement price: {_inr(replacement)}" + (" (default assumption; override with --replacement-cost)" if not replacement_cost else " (entered by user)"),
             f"Typical lifespan: {life_years:g} years" + (f"; device age: {age_years:g} years (user entered)" if age_years is not None else " (default assumption; override with --age)"),
+            f"Typical {dev_key} mass for e-waste calculations: {dev_mass:g} kg (estimate assumption).",
             "Repair cost is an estimated parts range from knowledge base, not a formal service center quote.",
             "Part replacement (e.g. replacing an LCD panel or battery) is categorized as repair of the device, not whole-device replacement."
         ],

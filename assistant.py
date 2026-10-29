@@ -16,13 +16,28 @@ except ImportError:
 
 import detect_new
 from questionaire import run_questionnaire, normalize_device
-from fault_engine import engine
+from fault_engine import engine, evaluate_safety, STOP_USING_ADVICE
 import cv as cv_analysis
 import verdict as verdict_engine
 import gamma as explanation_engine
 
 BASE_DIR = Path(__file__).resolve().parent
 OUTPUT_DIR = BASE_DIR / "outputs" / "diagnoses"
+
+CV_LEVEL_RANK = {"none": 0, "low": 1, "medium": 2, "high": 3}
+DEMO_DESCRIPTION = "laptop turns on but black screen, fan spins"
+DEMO_SCRIPTED_ANSWERS = {
+    "affected_component": "Screen / display",
+    "power_state": "Lights/fan turn on but no display",
+    "startup_signals": "No",
+    "memory_storage": "Not sure / not applicable",
+    "display": "Black screen",
+    "temperature": "Not sure",
+    "charging": "Works normally",
+    "recent_event": "No known event",
+    "hazards": "No",
+    "duration": "Not sure",
+}
 
 
 def choose_device():
@@ -34,6 +49,71 @@ def choose_device():
     if choice.isdigit() and 1 <= int(choice) <= len(supported):
         return supported[int(choice) - 1]
     return normalize_device(choice)
+
+
+def merge_cv_results(cv_results):
+    """Merge CV findings by id, keeping the highest level (none < low < medium < high)."""
+    if not cv_results:
+        return None
+    merged_findings = {}
+    merged = {
+        "findings": [],
+        "safety_flag": False,
+        "quality_warnings": [],
+        "follow_up_question": None,
+        "annotated_image": None,
+    }
+    for cv in cv_results:
+        if not cv:
+            continue
+        merged["safety_flag"] = merged["safety_flag"] or bool(cv.get("safety_flag"))
+        for warning in cv.get("quality_warnings") or []:
+            if warning not in merged["quality_warnings"]:
+                merged["quality_warnings"].append(warning)
+        if cv.get("follow_up_question"):
+            merged["follow_up_question"] = cv["follow_up_question"]
+        if cv.get("annotated_image"):
+            merged["annotated_image"] = cv["annotated_image"]
+        for finding in cv.get("findings") or []:
+            fid = finding.get("id")
+            prev = merged_findings.get(fid)
+            if prev is None or CV_LEVEL_RANK.get(finding.get("level"), 0) > CV_LEVEL_RANK.get(prev.get("level"), 0):
+                merged_findings[fid] = finding
+    merged["findings"] = list(merged_findings.values())
+    return merged
+
+
+def _crop_box_from_detections(detections):
+    if not detections:
+        return None
+    boxes = [d.get("box") for d in detections if d.get("box")]
+    if not boxes:
+        return None
+    return [
+        min(b[0] for b in boxes),
+        min(b[1] for b in boxes),
+        max(b[2] for b in boxes),
+        max(b[3] for b in boxes),
+    ]
+
+
+def _prompt_optional(message, demo=False):
+    if demo:
+        return None
+    try:
+        value = input(message).strip()
+    except EOFError:
+        return None
+    return value or None
+
+
+def _parse_optional_float(raw):
+    if raw is None or str(raw).strip() == "":
+        return None
+    try:
+        return float(raw)
+    except (TypeError, ValueError):
+        return None
 
 
 def make_detection_payload(image_path=None, device_type=None, detection_result=None):
@@ -104,7 +184,7 @@ def print_report(report):
     print(f"Severity             : {diagnosis.get('severity', 'Not specified')}")
     print(f"Repair complexity    : {recommendation.get('complexity', 'Not specified')}")
     print(f"Fault-engine action  : {recommendation.get('action', 'Not available')}")
-    print(f"Estimated parts cost : {recommendation.get('estimated_cost', 'Not available')}")
+    print(f"Estimated parts cost : {str(recommendation.get('estimated_cost', 'Not available')).replace('₹', 'Rs ')}")
     print(f"Estimated time       : {recommendation.get('estimated_time', 'Not available')}")
     print("\nREPAIR VS REPLACE DECISION")
     print(f"  Verdict            : >>> {decision.get('verdict', 'Not available')} <<<")
@@ -131,6 +211,18 @@ def print_report(report):
         print("\nDECISION ASSUMPTIONS (User Overridable via --replacement-cost / --age)")
         for a in assumptions:
             print(f"  * {a}")
+
+    ewaste = decision.get("e_waste") or report.get("e_waste")
+    if ewaste:
+        print("\nE-WASTE IMPACT (ESTIMATE)")
+        if ewaste.get("status") == "avoided":
+            print(f"  Status             : E-waste avoided")
+            print(f"  Estimated mass saved: ~{ewaste.get('amount_kg')} kg (estimate)")
+            print(f"  Basis / Assumption : {ewaste.get('assumption')}")
+        elif ewaste.get("status") == "recycling_advice":
+            print(f"  Status             : Whole-device replacement / recycling needed")
+            print(f"  Basis / Assumption : {ewaste.get('assumption')}")
+            print(f"  Take-back guidance : {ewaste.get('advice')}")
 
     if report.get("safety_alert") or decision.get("safety_hold"):
         print("\n" + "!" * 72)
@@ -179,15 +271,51 @@ def save_report(report, source_name="manual"):
 
 
 def run_pipeline(image_path=None, device_type=None, confidence=0.25, age_years=None,
-                 replacement_cost=None, gemma_backend="auto", enable_second_opinion=False):
+                 replacement_cost=None, gemma_backend="auto", enable_second_opinion=False,
+                 video_path=None, describe=None, demo=False):
     print("\n" + "=" * 72 + "\n REPAIR BEFORE REPLACE - INTEGRATED PIPELINE\n" + "=" * 72)
+    if demo:
+        describe = DEMO_DESCRIPTION
+        gemma_backend = "template"
+        image_path = None
+        video_path = None
+        enable_second_opinion = False
+
     source_image = Path(image_path).expanduser().resolve() if image_path else None
     if source_image and not source_image.is_file():
         raise FileNotFoundError(f"Image file not found: {source_image}")
+    source_video = Path(video_path).expanduser().resolve() if video_path else None
+    if source_video and not source_video.is_file():
+        raise FileNotFoundError(f"Video file not found: {source_video}")
 
     detection_result = None
     cv_result = None
-    if source_image:
+    if demo:
+        print("\n[1/5] Demo mode: skipping image/video/network detection.")
+        print("[2/5] Demo mode: skipping OpenCV photo analysis.")
+    elif source_video:
+        print(f"\n[1/5] Sampling frames from {source_video.name}...")
+        try:
+            detection_result = detect_new.detect_sampled_frames(str(source_video), conf=confidence)
+        except Exception as exc:
+            print(f"[WARNING] Object detection failed: {exc}")
+            detection_result = {"detections": [], "frames": []}
+        best_path = (detection_result or {}).get("image_path")
+        if best_path:
+            source_image = Path(best_path)
+        print("[2/5] Analyzing visible damage on sampled frames with OpenCV...")
+        cv_parts = []
+        for frame in (detection_result or {}).get("frames") or []:
+            frame_path = frame.get("image_path")
+            if not frame_path:
+                continue
+            try:
+                crop_box = _crop_box_from_detections(frame.get("detections") or [])
+                cv_parts.append(cv_analysis.analyze_image(frame_path, crop_box=crop_box))
+            except Exception as exc:
+                print(f"[WARNING] OpenCV analysis failed: {exc}")
+        cv_result = merge_cv_results(cv_parts)
+    elif source_image:
         print(f"\n[1/5] Detecting device/components in {source_image.name}...")
         try:
             detection_result = detect_new.detect_image(str(source_image), conf=confidence)
@@ -195,16 +323,7 @@ def run_pipeline(image_path=None, device_type=None, confidence=0.25, age_years=N
             print(f"[WARNING] Object detection failed: {exc}\n          Will continue with manual device selection if needed.")
         print("[2/5] Analyzing visible damage and photo quality with OpenCV...")
         try:
-            # Crop to detected laptop region if bounding box is available
-            crop_box = None
-            detections = (detection_result or {}).get("detections", [])
-            if detections:
-                min_x1 = min(d["box"][0] for d in detections)
-                min_y1 = min(d["box"][1] for d in detections)
-                max_x2 = max(d["box"][2] for d in detections)
-                max_y2 = max(d["box"][3] for d in detections)
-                crop_box = [min_x1, min_y1, max_x2, max_y2]
-
+            crop_box = _crop_box_from_detections((detection_result or {}).get("detections", []))
             cv_result = cv_analysis.analyze_image(str(source_image), crop_box=crop_box)
         except Exception as exc:
             print(f"[WARNING] OpenCV analysis failed: {exc}")
@@ -217,17 +336,40 @@ def run_pipeline(image_path=None, device_type=None, confidence=0.25, age_years=N
     if cv_result and cv_result.get("safety_flag"):
         payload["safety_alert"] = True
     if not payload.get("device_type"):
-        # The Roboflow model detects laptop internals. Never fall back to household devices.
-        payload["device_type"] = "laptop" if payload["findings"] else (device_type or choose_device())
+        if demo or describe:
+            payload["device_type"] = device_type or "laptop"
+        elif payload["findings"]:
+            payload["device_type"] = "laptop"
+        else:
+            payload["device_type"] = device_type or choose_device()
     if cv_result:
         for item in cv_result.get("findings", []):
             payload["findings"].append(
                 f"OpenCV visual observation: {item['label']} ({item['level']}): {item['detail']}"
             )
 
+    early_safety = evaluate_safety(free_text=describe)
+    force_service = bool(early_safety["safety_alert"])
+    if force_service:
+        print("\n" + "!" * 60)
+        print("CRITICAL SAFETY ALERT — HARD HAZARD DETECTED")
+        print("!" * 60)
+        for advice_line in STOP_USING_ADVICE:
+            print(f"  {advice_line}")
+        print("!" * 60)
+        payload["safety_alert"] = True
+
     print("\n[3/5] Collecting symptoms and running diagnosis...")
-    report = run_questionnaire(payload, image_path=str(source_image) if source_image else None,
-                               run_diagnosis=True)
+    # When a hard hazard is found, skip prompts to produce report early and safely
+    report = run_questionnaire(
+        payload,
+        image_path=str(source_image) if source_image else None,
+        run_diagnosis=True,
+        scripted_answers=DEMO_SCRIPTED_ANSWERS if demo else None,
+        free_text=describe,
+        skip_prompts=demo or force_service,
+        use_gemini=False if (demo or force_service) else True,
+    )
 
     if report.get("status") in ("unsupported", "unsupported_device"):
         print_report(report)
@@ -236,11 +378,18 @@ def run_pipeline(image_path=None, device_type=None, confidence=0.25, age_years=N
         return report
 
     print("[4/5] Calculating repair-vs-replace decision...")
+    adapted = adapt_report_for_verdict(report)
+    if force_service:
+        adapted["safety_alert"] = True
+        adapted["requires_professional_attention"] = True
     decision = verdict_engine.decide(
         device=report.get("device_type", payload["device_type"]),
-        report=adapt_report_for_verdict(report), cv_result=cv_result,
+        report=adapted, cv_result=cv_result,
         age_years=age_years, replacement_cost=replacement_cost,
     )
+    if force_service:
+        decision["verdict"] = "SERVICE (technician)"
+        decision["safety_hold"] = True
     report["repair_decision"] = decision
     report["visual_analysis"] = cv_result
     report["input_image"] = str(source_image) if source_image else None
@@ -257,6 +406,7 @@ def run_pipeline(image_path=None, device_type=None, confidence=0.25, age_years=N
                       "severity": diagnosis.get("severity", "Unknown"),
                       "supporting_evidence": diagnosis.get("supporting_evidence", [])},
         "verdict": decision,
+        "e_waste": decision.get("e_waste"),
     }
     report["explanation"] = explanation_engine.explain(context, backend=gemma_backend)
     if enable_second_opinion and source_image:
@@ -271,16 +421,38 @@ def run_pipeline(image_path=None, device_type=None, confidence=0.25, age_years=N
 def main():
     parser = argparse.ArgumentParser(description="Integrated Repair Before Replace assistant")
     parser.add_argument("--image", "-i", help="Path to a device image (optional)")
+    parser.add_argument("--video", help="Path to a device video (optional)")
+    parser.add_argument("--describe", help="Free-text symptom description (optional)")
+    parser.add_argument("--demo", action="store_true", help="Offline non-interactive sample run")
     parser.add_argument("--device", "-d", help="Computer device type (currently laptop/PC only)")
     parser.add_argument("--confidence", type=float, default=0.25, help="Object-detection confidence threshold")
     parser.add_argument("--age", type=float, help="Device age in years")
     parser.add_argument("--replacement-cost", type=float, help="Replacement price in INR")
-    parser.add_argument("--gemma-backend", choices=["auto", "ollama", "api"], default="auto")
+    parser.add_argument("--gemma-backend", choices=["auto", "ollama", "api", "template"], default="auto")
     parser.add_argument("--second-opinion", action="store_true", help="Add a separate Gemma visual description")
     args = parser.parse_args()
+
+    describe = args.describe
+    age_years = args.age
+    replacement_cost = args.replacement_cost
+    if not args.demo:
+        if not args.image and not args.video and describe is None:
+            describe = _prompt_optional("Optional symptom description (Enter to skip): ", demo=False)
+        if age_years is None:
+            age_years = _parse_optional_float(
+                _prompt_optional("Device age in years (Enter to skip): ", demo=False)
+            )
+        if replacement_cost is None:
+            replacement_cost = _parse_optional_float(
+                _prompt_optional("Replacement price in INR (Enter to skip): ", demo=False)
+            )
+
     try:
-        run_pipeline(args.image, args.device, args.confidence, args.age, args.replacement_cost,
-                     args.gemma_backend, args.second_opinion)
+        run_pipeline(
+            args.image, args.device, args.confidence, age_years, replacement_cost,
+            args.gemma_backend, args.second_opinion,
+            video_path=args.video, describe=describe, demo=args.demo,
+        )
     except (FileNotFoundError, ValueError) as exc:
         print(f"[ERROR] {exc}", file=sys.stderr)
         raise SystemExit(1)

@@ -1,234 +1,198 @@
 # Repair Before Replace — AI Repair Assistant
 
-An end-to-end, terminal-based prototype that helps users investigate a faulty device. It can analyze a device image with a Roboflow-hosted object-detection model, ask the user structured questions about the symptoms and safety risks, and produce a diagnosis with troubleshooting guidance. When configured, Gemini generates the diagnosis using the image and questionnaire answers; if Gemini is unavailable, the rule-based diagnosis path is used as a fallback.
+> **Empowering people to diagnose electronic faults safely, weigh repair economics transparently, and reduce global e-waste.**
 
-> **Safety notice:** This tool provides advisory troubleshooting, not a certified repair assessment. Never open or handle powered electrical equipment, swollen batteries, or components that may be dangerous. Disconnect power only when it is safe to do so, and contact a qualified technician when a hazard is suspected.
+Many electronic devices are replaced prematurely not because they are unfixable, but because owners cannot identify the fault or determine whether a repair is worth the cost. **Repair Before Replace** is an AI-assisted hardware diagnostic system that evaluates faulty devices through photos, videos, or text descriptions. It identifies likely faults, provides tiered safety-first troubleshooting instructions, estimates repair complexity and cost, and delivers an objective verdict: **REPAIR (DIY)**, **SERVICE (technician)**, or **REPLACE (device)**.
 
-## Workflow
+---
 
-```text
-User starts assistant.py
-        |
-        v
-Optional image supplied with --image
-        |
-        v
- detect_new.py
- Roboflow-hosted object/component detection
-        |
-        v
- Resolve device type and visual findings
- (manual device selection if detection is unavailable)
-        |
-        v
- questionaire.py
- Ask device-specific and general symptom/safety questions
-        |
-        v
- fault_engine.py
- Gemini diagnosis when configured; rule-based fallback otherwise
-        |
-        v
- Print diagnostic report in terminal
-        |
-        v
- Save JSON report to outputs/diagnoses/
+## Architecture & Pipeline
+
+The system is architected as an explainable, deterministic pipeline where **safety always beats diagnosis, and LLMs never decide financial or repair verdicts**.
+
+```
+[ Photo / Video / Text Input ]
+              │
+              ▼
+    1. detect_new.py (Roboflow Inference)
+       - Detects laptop components & extracts bounding boxes
+       - Multi-frame sampling for video (sharpness-ranked)
+              │
+              ▼
+    2. cv.py (Classical OpenCV Analysis)
+       - Crops to detected device bounding box (4% padding)
+       - Scorch/burn filtering (eliminates wood-tone desk false positives)
+       - Detects cracks, rust, and image quality warnings
+              │
+              ▼
+    3. questionaire.py (Symptom Collection)
+       - Pre-fills answers from free-text descriptions
+       - Prompts follow-up confirmation for minor visual discoloration
+       - Early safety halt if confirmed hard hazards are detected
+              │
+              ▼
+    4. fault_engine.py (Deterministic Fault Engine)
+       - DEVICE_REGISTRY based (laptop in Phase 1)
+       - Whole-word keyword & co-occurrence scoring
+       - Strict fallback to "Inconclusive" (never false matches)
+       - Optional Gemini API selection constrained to known rule IDs
+              │
+              ▼
+    5. verdict.py (Deterministic Decision Engine)
+       - Three verdicts: REPAIR (DIY), SERVICE (technician), REPLACE (device)
+       - Cost-ratio (<40% / >60%) and lifespan depreciation thresholds
+       - Traceable decision factors and user-overridable assumptions
+       - E-waste impact assessment (avoided kg or take-back advice)
+              │
+              ▼
+    6. gamma.py (Plain-Language Explanation)
+       - Explains existing diagnosis facts (Ollama local Gemma, Gemini API, or built-in template)
+       - Never invents faults, parts, or prices
+              │
+              ▼
+    7. assistant.py (Integrated CLI & Report Generator)
+       - Orchestrates pipeline, renders terminal report, and saves JSON artifact
 ```
 
-### Module responsibilities
+---
 
-| File | Responsibility |
-|---|---|
-| `assistant.py` | Main entry point; coordinates detection, questionnaire, diagnosis, terminal output, and JSON export. **Run this file to start the complete workflow.** |
-| `detect_new.py` | Sends the supplied image to the configured Roboflow model and returns component detections. |
-| `questionaire.py` | Collects symptoms and safety information through terminal questions. The filename intentionally uses the spelling `questionaire.py` to match the import. |
-| `fault_engine.py` | Produces a structured diagnosis using Gemini when configured and falls back to the existing rule-based engine when needed. |
-| `.env.example` | Template for required API/model configuration. Copy it to `.env` and fill in your own values. |
-| `outputs/diagnoses/` | Created automatically when a diagnosis is saved; contains JSON reports. |
+## Core Principles & Safety Protocol
 
-## Requirements
+1. **Safety Beats Everything**:
+   - Free-text descriptions and questionnaire answers are scanned for hard hazards (`smoke`, `spark`, `burning smell`, `shock`, `swollen`, `bulging`, `liquid`, `spill`, `wet`, `hot to touch`).
+   - When a hard hazard is confirmed, the assistant **halts DIY troubleshooting immediately**, issues critical stop-using advice (do not charge, do not open casing), forces the verdict to **`SERVICE (technician)`**, and generates a complete report.
+   - "Not sure" is treated as a caution, not a hazard floor.
 
-- Python 3.10 or newer recommended.
-- A Roboflow API key and a valid hosted model ID for image detection.
-- A Gemini API key for Gemini-based diagnosis. The rule-based fallback can still be used if Gemini is not configured or a Gemini request fails.
-- Internet access for calls to the hosted Roboflow model and Gemini API.
+2. **Tiered Guidance**:
+   - Every diagnosis splits actions into two distinct tiers:
+     - **Safe Checks (Tier 1)**: Non-invasive, external checks (HDMI to TV, flashlight test, Caps Lock light, charger testing).
+     - **Advanced Steps (Tier 2)**: Opening the chassis, RAM oxidation cleaning with pencil eraser, thermal repasting.
+   - For `CRITICAL` severity or safety-hold faults (swollen battery, liquid spill, motherboard surge), **Tier 2 is completely empty** to protect users.
 
-## Setup
+3. **Deterministic Economic Verdicts**:
+   - **`REPAIR (DIY)`**: Economical repair with safe, beginner/intermediate steps.
+   - **`SERVICE (technician)`**: Requires specialized tools, microsoldering, or involves physical/electrical hazards.
+   - **`REPLACE (device)`**: Parts repair cost exceeds 60% of replacement price (or exceeds 40% when the device is past 70% of its typical lifespan).
+   - Component replacement (e.g. LCD screen or battery) is explicitly distinguished from whole-device replacement.
 
-Run the commands from the directory containing `assistant.py`.
+4. **E-Waste Metrics**:
+   - For `REPAIR` or `SERVICE`, calculates **estimated e-waste avoided** (e.g. `~2.1 kg` based on standard laptop mass assumption).
+   - For `REPLACE`, provides **responsible take-back advice** (authorized e-waste recycler, never bin, remove/wipe personal storage data).
+   - All figures are transparently labelled as **estimates**.
 
-### 1. Create and activate a virtual environment (recommended)
+5. **Graceful Degradation (Zero API Keys Needed)**:
+   - If Roboflow, Gemini, or Ollama are unavailable, each emits a single warning line and falls back to deterministic rule matching and offline template explanations.
 
-**Windows PowerShell:**
+---
 
-```powershell
-python -m venv .venv
-.\.venv\Scripts\Activate.ps1
-```
+## Getting Started
 
-**macOS / Linux:**
+### Installation
+
+Clone the repository and install the minimal dependencies:
 
 ```bash
-python3 -m venv .venv
-source .venv/bin/activate
+git clone https://github.com/adityakudva/Repair-Before-Replace.git
+cd Repair-Before-Replace
+pip install -r requirements.txt
 ```
 
-### 2. Install dependencies
+### Environment Configuration (Optional)
 
-```bash
-python -m pip install --upgrade pip
-python -m pip install inference-sdk pillow opencv-python google-genai python-dotenv
-```
-
-If your existing project has a `requirements.txt`, install it as well:
-
-```bash
-python -m pip install -r requirements.txt
-```
-
-### 3. Configure environment variables
-
-Copy `.env.example` to a new file named `.env` in the same directory as `assistant.py`.
-
-**Windows PowerShell:**
-
-```powershell
-Copy-Item .env.example .env
-```
-
-**macOS / Linux:**
+Copy `.env.example` to `.env`:
 
 ```bash
 cp .env.example .env
 ```
 
-Open `.env` and replace the example values:
+| Key | Description | Optional? |
+|---|---|---|
+| `GEMINI_API_KEY` | Google AI Studio API key for Gemini fault selection & explanation | Yes (falls back to rules/template) |
+| `GEMINI_MODEL` | Gemini model name (default: `gemini-2.5-flash`) | Yes |
+| `ROBOFLOW_API_KEY` | Roboflow API key for component detection | Yes (falls back to manual selection) |
+| `ROBOFLOW_MODEL_ID`| Roboflow model ID | Yes |
+| `OLLAMA_URL` | Local Ollama endpoint (default: `http://localhost:11434`) | Yes |
+| `GEMMA_MODEL` | Local Gemma model (e.g. `gemma3:4b`) | Yes |
 
-```env
-GEMINI_API_KEY=your_actual_gemini_api_key
-GEMINI_MODEL=gemini-2.5-flash
-ROBOFLOW_API_KEY=your_actual_roboflow_api_key
-ROBOFLOW_MODEL_ID=your-project/3
-```
+---
 
-Use the model ID shown in your Roboflow project, not the example `your-project/3`. Keep `.env` private and add it to `.gitignore` so API keys are never committed to GitHub. Do not put API keys in frontend JavaScript or share them in screenshots.
+## Usage
 
-### 4. Check the project files
+### 1. Offline Demo Mode (Zero Network Calls)
 
-Keep these files together in the same project directory:
-
-```text
-project-folder/
-├── assistant.py
-├── detect_new.py
-├── questionaire.py
-├── fault_engine.py
-├── .env
-├── .env.example
-├── README.md
-└── outputs/                 # created automatically when reports are saved
-    └── diagnoses/
-```
-
-## Run the project
-
-### Option A: Start without an image
+Runs an end-to-end diagnosis using offline scripted inputs and built-in templates:
 
 ```bash
-python assistant.py
+python assistant.py --demo
 ```
 
-The program asks you to select a device. It then runs the questionnaire and diagnosis workflow. Detection confidence and visual findings will be unavailable when no image is supplied.
+### 2. Image Input
 
-### Option B: Diagnose an image
+Diagnose a laptop from a photo:
 
 ```bash
-python assistant.py --image "path/to/device.jpg"
+python assistant.py --image path/to/laptop.jpg
 ```
 
-Example on Windows:
+### 3. Video Input
 
-```powershell
-python assistant.py --image "images/laptop.jpg"
-```
-
-Example on macOS/Linux:
+Extracts 3–5 sharpest frames, performs multi-frame damage analysis, and merges visual findings:
 
 ```bash
-python assistant.py --image "images/laptop.jpg"
+python assistant.py --video path/to/laptop_video.mp4
 ```
 
-Use the actual path to your image. Supported image formats depend on the detection/image-processing libraries; JPEG and PNG are recommended.
+### 4. Free-Text Description Only
 
-### Option C: Provide the device type explicitly
+Run diagnosis directly from symptoms:
 
 ```bash
-python assistant.py --image "images/laptop.jpg" --device laptop
+python assistant.py --describe "laptop turns on but screen stays black, fan is spinning"
 ```
 
-The explicit device type overrides automatic device-type resolution in the pipeline.
-
-### Option D: Adjust the detection confidence threshold
+### 5. Interactive Combination with Age and Cost Overrides
 
 ```bash
-python assistant.py --image "images/laptop.jpg" --confidence 0.40
+python assistant.py --image laptop.jpg --age 3.5 --replacement-cost 55000
 ```
 
-The default confidence threshold is `0.25`. Higher values generally filter out lower-confidence detections; they can also result in fewer detections.
+*(If `--age` or `--replacement-cost` are omitted, the assistant prompts interactively: press `Enter` to use defaults).*
 
-### See available command-line options
+---
+
+## Testing
+
+Run the unit test suite:
 
 ```bash
-python assistant.py --help
+python -m unittest test_fault_engine.py -v
 ```
 
-## Output
+Run the device registry & unsupported device smoke tests:
 
-After the questionnaire and diagnosis finish, the program prints a diagnostic report in the terminal. The report can include:
-
-- Device type and detected visual findings
-- Primary possible fault and confidence, when supplied by the diagnosis engine
-- Severity and recommended action
-- Repair complexity, estimated cost, and estimated time when available
-- Safety instructions and troubleshooting steps
-- Required tools and alternative possible faults, when available
-
-A JSON report is saved automatically under:
-
-```text
-outputs/diagnoses/<source>_<timestamp>_diagnosis.json
+```bash
+python test_all_devices.py
 ```
 
-The `outputs/diagnoses/` directory is created automatically. Each run produces a timestamped report so prior reports are not intentionally overwritten.
+---
 
-## Troubleshooting
+## Roadmap: Phase 1 & Registry-Based Expansion
 
-| Problem | What to check |
-|---|---|
-| `ROBOFLOW_API_KEY is not set` | Confirm that `.env` exists beside the project files and contains your Roboflow API key. Check that `python-dotenv` is installed. |
-| `ROBOFLOW_MODEL_ID is not set` | Set `ROBOFLOW_MODEL_ID` to the correct model ID from your Roboflow project. |
-| Roboflow request fails | Check internet access, API key validity, model ID, and whether the hosted model is available. |
-| Gemini diagnosis does not run | Verify `GEMINI_API_KEY`, model availability, internet access, and the installed `google-genai` package. The rule-based fallback may be used if the request fails. |
-| Image file not found | Check the path and spelling. Use quotes around paths that contain spaces. |
-| No visual detections | Try a clearer, well-lit image, verify the correct model is configured, or provide `--device` to continue with manual device selection. |
-| `ModuleNotFoundError` | Activate the intended virtual environment and install the dependencies listed above. Ensure all four Python files are in the same directory. |
+- [x] **Phase 1 (Current Scope - Laptops & PCs)**:
+  - Full depth for laptop hardware components (RAM, SSD, screen panel, battery, charging port, thermal fan, motherboard surge, keyboard/touchpad).
+  - OpenCV crop-box damage heuristics (scorch marks with wood-tone rejection, corrosion, crack lines).
+  - Deterministic 3-way verdicts, e-waste metrics, and safety-stop guarantees.
+  - Device Registry architecture (`DEVICE_REGISTRY = {"laptop": [...]}`).
+  - Unsupported device protection: entering household appliances (fans, bulbs, TVs, microwaves, phones) returns structured polite notices with electrical safety advice, preventing misdiagnoses or crashes.
 
-## Current limitations
+- [ ] **Phase 2 (Registry Expansion)**:
+  - Add smartphones and tablets (`DEVICE_REGISTRY["smartphone"]`).
+  - Add PC desktop peripherals and monitors.
+  - Multi-language support for regional repair communities.
+  - Integration with local open-source repair manual APIs (e.g., iFixit guide links).
 
-- The configured Roboflow model in `detect_new.py` is a **laptop-component model**. It should not be assumed to identify fans, bulbs, or switchboards unless you configure a model trained for those devices and adapt the device-resolution logic.
-- The questionnaire is currently terminal-based, not a web form.
-- Diagnosis and cost/time estimates are advisory and may be uncertain; they should not be treated as confirmed measurements or a substitute for professional inspection.
-- The project has not been validated against every device, fault type, or hardware configuration. Test with safe sample images and verify API setup before relying on the output.
+---
 
-## Git safety
+## License
 
-Add these entries to `.gitignore` if they are not already present:
-
-```gitignore
-.env
-.venv/
-__pycache__/
-outputs/
-```
-
-Review generated reports before sharing them, as they may contain user-provided symptom descriptions or other information from a diagnostic session.
+MIT License. Designed for sustainable electronics and open-source repairability.

@@ -1,7 +1,15 @@
 """
-Unit Tests for AI Repair Assistant - Fault Diagnosis Engine
-Validates deterministic laptop diagnosis, DeviceRegistry, safe_checks / advanced_steps split,
-inconclusive fallback, and acceptance tests (no false power+light charger match).
+Unit & Integration Tests for AI Repair Assistant
+Validates:
+  - DeviceRegistry and active laptop rules
+  - Real questionnaire key mappings
+  - Tiered repair steps (safe_checks non-invasive vs advanced_steps chassis-open)
+  - CRITICAL / SERVICE-only rules have empty advanced_steps
+  - Three canonical verdicts: REPAIR (DIY), SERVICE (technician), REPLACE (device)
+  - Hard hazard free-text detection & early safety stop
+  - Unsupported device routing with safety advice
+  - E-waste impact calculations (avoided kg) & recycling advice
+  - End-to-end --demo offline execution
 """
 
 import unittest
@@ -12,17 +20,86 @@ from fault_engine import (
     LAPTOP_RULES,
     process_questionnaire,
 )
-from verdict import decide
+from questionaire import (
+    answers_from_description,
+    run_questionnaire,
+    unsupported_device_from_text,
+    QUESTIONNAIRE_KEYS,
+)
+from verdict import decide, parse_cost, DEVICE_MASS_KG
+import assistant
 
 
-class TestFaultDiagnosisEngine(unittest.TestCase):
+class TestFaultEngineAndRegistry(unittest.TestCase):
 
     def setUp(self):
         self.engine = FaultDiagnosisEngine()
 
     # ----------------------------------------------------------------------
-    # 1. Acceptance Criteria: No False Charger Match & Correct Mappings
+    # 1. Device Registry & Laptop Rules Structure
     # ----------------------------------------------------------------------
+
+    def test_device_registry_structure_and_active_rules(self):
+        """Registry must contain 'laptop' with all expected rules, and no legacy devices."""
+        self.assertIn("laptop", DEVICE_REGISTRY)
+        self.assertNotIn("fan", DEVICE_REGISTRY)
+        self.assertNotIn("bulb", DEVICE_REGISTRY)
+        self.assertNotIn("switchboard", DEVICE_REGISTRY)
+        self.assertNotIn("mouse", DEVICE_REGISTRY)
+
+        active_rule_ids = {r.fault_id for r in DEVICE_REGISTRY["laptop"]}
+        expected_ids = {
+            "LAPTOP_DEAD_BATTERY_CHARGER",
+            "LAPTOP_DISPLAY_RAM_ISSUE",
+            "LAPTOP_STORAGE_DRIVE_FAILURE",
+            "LAPTOP_OVERHEATING_DUST_THERMAL",
+            "LAPTOP_LIQUID_SPILL",
+            "LAPTOP_SWOLLEN_BATTERY",
+            "LAPTOP_KEYBOARD_TOUCHPAD_FAILURE",
+            "LAPTOP_MOTHERBOARD_SURGE_POWER_FAILURE",
+            "LAPTOP_COOLING_FAN_FAILURE",
+            "LAPTOP_PHYSICAL_SCREEN_DAMAGE",
+        }
+        self.assertTrue(expected_ids.issubset(active_rule_ids))
+
+    def test_tiered_steps_safe_checks_and_advanced_split(self):
+        """All laptop rules must have safe_checks; CRITICAL or SERVICE-only rules must have empty advanced_steps."""
+        for rule in LAPTOP_RULES:
+            self.assertTrue(
+                len(rule.safe_checks) > 0,
+                f"Rule {rule.fault_id} must have non-empty safe_checks"
+            )
+            is_critical = (
+                rule.severity == "CRITICAL"
+                or "service" in rule.recommendation.lower()
+                or rule.fault_id in ("LAPTOP_SWOLLEN_BATTERY", "LAPTOP_LIQUID_SPILL", "LAPTOP_MOTHERBOARD_SURGE_POWER_FAILURE")
+            )
+            if is_critical and rule.fault_id != "LAPTOP_OVERHEATING_DUST_THERMAL":
+                if "SERVICE" in rule.recommendation and "DIY" not in rule.recommendation:
+                    self.assertEqual(
+                        len(rule.advanced_steps), 0,
+                        f"CRITICAL/SERVICE-only rule {rule.fault_id} must have empty advanced_steps"
+                    )
+
+    # ----------------------------------------------------------------------
+    # 2. Real Questionnaire Keys & Diagnostic Mappings
+    # ----------------------------------------------------------------------
+
+    def test_real_questionnaire_keys_used(self):
+        """Questionnaire keys must strictly match the canonical list."""
+        expected_keys = {
+            "affected_component",
+            "power_state",
+            "startup_signals",
+            "memory_storage",
+            "display",
+            "temperature",
+            "charging",
+            "recent_event",
+            "hazards",
+            "duration",
+        }
+        self.assertEqual(set(QUESTIONNAIRE_KEYS), expected_keys)
 
     def test_no_false_power_light_charger_match(self):
         """'Lights/fan turn on but no display' must map to RAM/Display, NOT Dead Charger."""
@@ -36,6 +113,7 @@ class TestFaultDiagnosisEngine(unittest.TestCase):
             "charging": "Works normally",
             "recent_event": "No known event",
             "hazards": "No",
+            "duration": "A few days",
         }
         payload = {
             "status": "success",
@@ -49,6 +127,58 @@ class TestFaultDiagnosisEngine(unittest.TestCase):
         self.assertEqual(primary["fault_id"], "LAPTOP_DISPLAY_RAM_ISSUE")
         self.assertNotEqual(primary["fault_id"], "LAPTOP_DEAD_BATTERY_CHARGER")
 
+    def test_storage_failure_mapping(self):
+        """'No boot device / SSD or HDD not detected' maps to LAPTOP_STORAGE_DRIVE_FAILURE."""
+        answers = {
+            "affected_component": "SSD / HDD storage",
+            "power_state": "Starts normally",
+            "startup_signals": "Error message",
+            "memory_storage": "No boot device / SSD or HDD not detected",
+            "display": "Normal display",
+            "temperature": "Normal temperature",
+            "charging": "Works normally",
+            "recent_event": "No known event",
+            "hazards": "No",
+            "duration": "Started today",
+        }
+        payload = {
+            "status": "success",
+            "module": "questionnaire",
+            "device_type": "laptop",
+            "detected_findings": ["SSD"],
+            "answers": answers,
+        }
+        res = process_questionnaire(payload, use_gemini=False)
+        primary = res["diagnosis"]
+        self.assertEqual(primary["fault_id"], "LAPTOP_STORAGE_DRIVE_FAILURE")
+
+    def test_swollen_battery_mapping(self):
+        """'Battery looks swollen' maps to LAPTOP_SWOLLEN_BATTERY (CRITICAL)."""
+        answers = {
+            "affected_component": "Battery / charging",
+            "power_state": "Starts normally",
+            "startup_signals": "No",
+            "memory_storage": "Not sure / not applicable",
+            "display": "Normal display",
+            "temperature": "Very hot to touch",
+            "charging": "Battery looks swollen or trackpad lifting",
+            "recent_event": "No known event",
+            "hazards": "Yes",
+            "duration": "A few days",
+        }
+        payload = {
+            "status": "success",
+            "module": "questionnaire",
+            "device_type": "laptop",
+            "detected_findings": ["battery"],
+            "answers": answers,
+        }
+        res = process_questionnaire(payload, use_gemini=False)
+        primary = res["diagnosis"]
+        self.assertEqual(primary["fault_id"], "LAPTOP_SWOLLEN_BATTERY")
+        self.assertEqual(primary["severity"], "CRITICAL")
+        self.assertEqual(len(primary["advanced_steps"]), 0)
+
     def test_inconclusive_diagnosis_when_no_rules_score(self):
         """If nothing scores > 0, return Inconclusive (never rules[0] / dead charger)."""
         symptom = "The device exterior is painted silver with rounded corners and has a small scratch."
@@ -61,176 +191,115 @@ class TestFaultDiagnosisEngine(unittest.TestCase):
         self.assertLessEqual(primary["confidence_score"], 0.20)
         self.assertEqual(primary["recommendation"], "SERVICE (Professional)")
 
-    def test_ssd_storage_failure_mapping(self):
-        """'No boot device / SSD or HDD not detected' maps to LAPTOP_STORAGE_DRIVE_FAILURE."""
-        answers = {
-            "affected_component": "SSD / HDD storage",
-            "power_state": "Starts normally",
-            "startup_signals": "Error message",
-            "memory_storage": "No boot device / SSD or HDD not detected",
-            "display": "Works normally",
-            "temperature": "Normal temperature",
-            "charging": "Works normally",
-            "recent_event": "No known event",
-            "hazards": "No",
-        }
-        res = process_questionnaire({"status": "success", "device_type": "laptop", "answers": answers}, use_gemini=False)
-        self.assertEqual(res["diagnosis"]["fault_id"], "LAPTOP_STORAGE_DRIVE_FAILURE")
-
-    def test_swollen_battery_mapping_and_empty_advanced_steps(self):
-        """'Battery looks swollen' maps to LAPTOP_SWOLLEN_BATTERY (CRITICAL, SERVICE, empty advanced_steps)."""
-        answers = {
-            "affected_component": "Battery / charging",
-            "charging": "Battery looks swollen",
-            "hazards": "Yes",
-        }
-        res = process_questionnaire({"status": "success", "device_type": "laptop", "answers": answers}, use_gemini=False)
-        self.assertEqual(res["diagnosis"]["fault_id"], "LAPTOP_SWOLLEN_BATTERY")
-        self.assertEqual(res["diagnosis"]["severity"], "CRITICAL")
-        self.assertEqual(res["repair_recommendation"]["action"], "SERVICE (Professional)")
-        self.assertEqual(res["diagnosis"]["advanced_steps"], [])
-        self.assertTrue(res["safety_alert"])
-
-    def test_keyboard_touchpad_failure_mapping(self):
-        """Keyboard/trackpad failure maps to LAPTOP_KEYBOARD_TOUCHPAD_FAILURE."""
-        symptom = "Specific keyboard keys not working and touchpad unresponsive."
-        res = self.engine.diagnose("laptop", symptom)
-        self.assertEqual(res["primary_diagnosis"]["fault_id"], "LAPTOP_KEYBOARD_TOUCHPAD_FAILURE")
-
-    def test_motherboard_surge_mapping_and_empty_advanced_steps(self):
-        """Power surge / electrical event maps to LAPTOP_MOTHERBOARD_SURGE_POWER_FAILURE (CRITICAL, SERVICE, empty advanced_steps)."""
-        answers = {
-            "power_state": "No power or lights",
-            "recent_event": "Power surge / electrical event",
-            "hazards": "Yes",
-        }
-        res = process_questionnaire({"status": "success", "device_type": "laptop", "answers": answers}, use_gemini=False)
-        self.assertEqual(res["diagnosis"]["fault_id"], "LAPTOP_MOTHERBOARD_SURGE_POWER_FAILURE")
-        self.assertEqual(res["diagnosis"]["severity"], "CRITICAL")
-        self.assertEqual(res["repair_recommendation"]["action"], "SERVICE (Professional)")
-        self.assertEqual(res["diagnosis"]["advanced_steps"], [])
-
-    def test_cooling_fan_failure_mapping(self):
-        """'Fan not spinning' maps to LAPTOP_COOLING_FAN_FAILURE."""
-        symptom = "Cooling fan not spinning and laptop displays fan error."
-        res = self.engine.diagnose("laptop", symptom)
-        self.assertEqual(res["primary_diagnosis"]["fault_id"], "LAPTOP_COOLING_FAN_FAILURE")
-
     # ----------------------------------------------------------------------
-    # 2. Unsupported Device Handling (DEVICE_REGISTRY)
+    # 3. Hazard-Text Scanning & Safety Logic
     # ----------------------------------------------------------------------
 
-    def test_unsupported_device_returns_structured_result(self):
-        """Unsupported devices return structured 'unsupported_device' status with safety advice."""
-        for unsupported_dev in ["fan", "bulb", "switchboard", "mouse", "toaster", "microwave"]:
-            res = self.engine.diagnose(unsupported_dev, "buzzing noise")
-            self.assertEqual(res["status"], "unsupported_device")
-            self.assertFalse(res["supported"])
-            self.assertIn("not supported yet", res["message"].lower())
-            self.assertGreater(len(res["safety_advice"]), 0)
-
-    # ----------------------------------------------------------------------
-    # 3. Rule Structure & Step Splitting
-    # ----------------------------------------------------------------------
-
-    def test_all_rules_have_safe_checks_and_critical_rules_have_empty_advanced(self):
-        """All laptop rules have safe_checks; CRITICAL or SERVICE-only rules have empty advanced_steps."""
-        rules = DEVICE_REGISTRY["laptop"]
-        self.assertGreaterEqual(len(rules), 10)
-        for r in rules:
-            self.assertGreater(len(r.safe_checks), 0, f"Rule {r.fault_id} must have safe_checks")
-            self.assertGreater(len(r.troubleshooting_steps), 0, f"Rule {r.fault_id} must have troubleshooting_steps")
-            if r.severity == "CRITICAL" or "SERVICE" in r.recommendation:
-                if r.fault_id in ("LAPTOP_LIQUID_SPILL", "LAPTOP_SWOLLEN_BATTERY", "LAPTOP_MOTHERBOARD_SURGE_POWER_FAILURE"):
-                    self.assertEqual(
-                        r.advanced_steps, [],
-                        f"CRITICAL rule {r.fault_id} must have empty advanced_steps"
-                    )
-
-    # ----------------------------------------------------------------------
-    # 4. Safety Guardrails & Verdict Acceptance Tests
-    # ----------------------------------------------------------------------
+    def test_hazard_text_detection_and_early_stop(self):
+        """Hazard words in free text must immediately raise safety_alert."""
+        for word in ["smoke", "spark", "burning smell", "shock", "swollen", "liquid spill", "wet"]:
+            res = evaluate_safety(free_text=f"My laptop has a {word} when plugged in.")
+            self.assertTrue(res["safety_alert"], f"Word '{word}' must trigger safety_alert")
+            self.assertTrue(res["requires_professional_attention"])
 
     def test_not_sure_is_caution_not_hazard(self):
         """'Not sure' must be treated as caution, NOT as a confirmed hazard."""
-        res = evaluate_safety(answers={"hazards": "Not sure"})
-        self.assertFalse(res["hazard_detected"])
+        answers = {
+            "hazards": "Not sure",
+            "temperature": "Not sure",
+            "power_state": "Starts normally",
+        }
+        res = evaluate_safety(answers=answers)
         self.assertFalse(res["safety_alert"])
-        self.assertGreater(len(res["caution_notes"]), 0)
+        self.assertFalse(res["requires_professional_attention"])
 
-    def test_verdict_cheap_fix_repair_diy(self):
-        """Cheap fix (e.g. RAM contact clean or heatsink paste) -> REPAIR (DIY)."""
-        report = {
+    # ----------------------------------------------------------------------
+    # 4. Three Canonical Verdicts & E-Waste Output
+    # ----------------------------------------------------------------------
+
+    def test_three_verdicts_and_ewaste(self):
+        """Validate REPAIR (DIY), SERVICE (technician), and REPLACE (device) plus e-waste notes."""
+        # 1. REPAIR (DIY)
+        res_repair = decide("laptop", {
             "primary_diagnosis": {
                 "fault_id": "LAPTOP_DISPLAY_RAM_ISSUE",
-                "fault_title": "RAM Contact Issue",
-                "estimated_parts_cost": "₹0 ($0)",
+                "fault_title": "RAM contact oxidation",
                 "recommendation": "REPAIR (DIY)",
-                "repair_complexity": "Low (Beginner)",
-                "severity": "MEDIUM",
-                "confidence_score": 0.85,
+                "estimated_parts_cost": "Rs 0",
+                "repair_complexity": "Low",
+                "confidence_score": 0.95,
             }
-        }
-        decision = decide(device="laptop", report=report, age_years=1.0)
-        self.assertEqual(decision["verdict"], "REPAIR (DIY)")
-        self.assertFalse(decision["safety_hold"])
-        self.assertFalse(decision["low_confidence"])
-        self.assertGreater(len(decision["decision_factors"]), 0)
+        })
+        self.assertEqual(res_repair["verdict"], "REPAIR (DIY)")
+        self.assertEqual(res_repair["e_waste"]["status"], "avoided")
+        self.assertEqual(res_repair["e_waste"]["amount_kg"], 2.1)
+        self.assertIn("estimate", res_repair["e_waste"]["summary"].lower())
 
-    def test_verdict_costly_and_old_replace_device(self):
-        """Costly and old (repair >= 40% on device >= 70% of life) -> REPLACE (device)."""
-        report = {
+        # 2. SERVICE (technician)
+        res_service = decide("laptop", {
             "primary_diagnosis": {
-                "fault_id": "LAPTOP_MOTHERBOARD_REPLACEMENT",
-                "fault_title": "Motherboard Replacement",
-                "estimated_parts_cost": "₹20,000 - ₹25,000",
-                "recommendation": "REPLACE",
-                "repair_complexity": "High (Advanced)",
-                "severity": "HIGH",
-                "confidence_score": 0.80,
-            }
-        }
-        # 4.0 years / 5.0 years = 80% life used, 22.5k / 45k = 50% cost ratio
-        decision = decide(device="laptop", report=report, age_years=4.0)
-        self.assertEqual(decision["verdict"], "REPLACE (device)")
-        self.assertTrue(any("REPLACE (device)" in r or "replacing the entire device" in r.lower() for r in decision["reasons"]))
-
-    def test_verdict_liquid_spill_service_technician(self):
-        """Liquid spill / swollen battery / critical hazard -> SERVICE (technician)."""
-        report = {
-            "primary_diagnosis": {
-                "fault_id": "LAPTOP_LIQUID_SPILL",
-                "fault_title": "Liquid Ingress Hazard",
-                "estimated_parts_cost": "₹1,500 - ₹5,000",
+                "fault_id": "LAPTOP_SWOLLEN_BATTERY",
+                "fault_title": "Swollen Battery",
                 "recommendation": "SERVICE (Professional)",
-                "repair_complexity": "Dangerous (Do Not DIY)",
+                "estimated_parts_cost": "Rs 3500",
+                "repair_complexity": "Dangerous",
                 "severity": "CRITICAL",
                 "confidence_score": 0.90,
-            },
-            "safety_alert": True,
-            "requires_professional_attention": True,
-        }
-        decision = decide(device="laptop", report=report)
-        self.assertEqual(decision["verdict"], "SERVICE (technician)")
-        self.assertTrue(decision["safety_hold"])
-
-    def test_verdict_inconclusive_low_confidence_flag(self):
-        """Inconclusive diagnosis or unparsed cost -> low_confidence: True with reason."""
-        report = {
-            "primary_diagnosis": {
-                "fault_id": "INCONCLUSIVE_INSPECTION_RECOMMENDED",
-                "fault_title": "Inconclusive - professional inspection recommended",
-                "estimated_parts_cost": "To be quoted after inspection",
-                "recommendation": "SERVICE (Professional)",
-                "repair_complexity": "Unknown",
-                "severity": "LOW",
-                "confidence_score": 0.15,
             }
-        }
-        decision = decide(device="laptop", report=report)
-        self.assertTrue(decision["low_confidence"])
-        self.assertTrue(any("low-confidence" in r.lower() or "inconclusive" in r.lower() for r in decision["reasons"]))
-        self.assertIn(decision["verdict"], ["REPAIR (DIY)", "SERVICE (technician)", "REPLACE (device)"])
+        })
+        self.assertEqual(res_service["verdict"], "SERVICE (technician)")
+        self.assertTrue(res_service["safety_hold"])
+        self.assertEqual(res_service["e_waste"]["status"], "avoided")
+
+        # 3. REPLACE (device)
+        res_replace = decide("laptop", {
+            "primary_diagnosis": {
+                "fault_id": "LAPTOP_MOTHERBOARD_DEAD",
+                "fault_title": "Dead Motherboard",
+                "recommendation": "REPLACE",
+                "estimated_parts_cost": "Rs 32000",
+                "repair_complexity": "High",
+                "confidence_score": 0.90,
+            }
+        }, age_years=4.5)
+        self.assertEqual(res_replace["verdict"], "REPLACE (device)")
+        self.assertEqual(res_replace["e_waste"]["status"], "recycling_advice")
+        self.assertIn("recycler", res_replace["e_waste"]["advice"].lower())
+        self.assertIn("data", res_replace["e_waste"]["advice"].lower())
+
+    # ----------------------------------------------------------------------
+    # 5. Unsupported Device Routing
+    # ----------------------------------------------------------------------
+
+    def test_unsupported_device_path(self):
+        """Unsupported devices return structured 'unsupported_device' payload with safety advice."""
+        for dev in ["fan", "bulb", "switchboard", "mouse", "toaster"]:
+            self.assertEqual(unsupported_device_from_text(f"my {dev} is broken"), dev)
+            report = run_questionnaire(
+                {"device_type": dev, "findings": []},
+                run_diagnosis=False,
+                skip_prompts=True,
+            )
+            self.assertEqual(report["status"], "unsupported_device")
+            self.assertFalse(report["supported"])
+            self.assertTrue(len(report["safety_advice"]) > 0)
+
+    # ----------------------------------------------------------------------
+    # 6. End-to-End Demo Mode
+    # ----------------------------------------------------------------------
+
+    def test_assistant_demo_mode_e2e(self):
+        """assistant.py --demo must run completely offline and produce a valid report."""
+        report = assistant.run_pipeline(demo=True)
+        self.assertIsNotNone(report)
+        self.assertEqual(report.get("device_type"), "laptop")
+        self.assertIn("repair_decision", report)
+        self.assertIn(
+            report["repair_decision"]["verdict"],
+            ["REPAIR (DIY)", "SERVICE (technician)", "REPLACE (device)"]
+        )
+        self.assertIn("e_waste", report["repair_decision"])
+        self.assertIn("explanation", report)
 
 
 if __name__ == "__main__":

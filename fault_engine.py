@@ -528,6 +528,31 @@ KNOWLEDGE_BASE: Dict[str, List[FaultRule]] = {
 # SHARED SAFETY & HAZARD EVALUATION
 # ===========================================================================
 
+HARD_HAZARD_FAULT_IDS = frozenset({
+    "LAPTOP_LIQUID_SPILL",
+    "LAPTOP_SWOLLEN_BATTERY",
+    "LAPTOP_MOTHERBOARD_SURGE_POWER_FAILURE",
+})
+
+
+def _displayed_confidence(score: float, fault_id: str) -> float:
+    """Cap displayed confidence at 0.95; floor hard-hazard faults at 0.60.
+
+    INCONCLUSIVE_INSPECTION_RECOMMENDED stays at or below 0.20 (typically 0.15).
+    Does not change safety flags.
+    """
+    try:
+        value = float(score)
+    except (TypeError, ValueError):
+        value = 0.0
+    if fault_id == "INCONCLUSIVE_INSPECTION_RECOMMENDED":
+        return round(min(max(value, 0.0), 0.20), 2)
+    value = min(max(value, 0.0), 0.95)
+    if fault_id in HARD_HAZARD_FAULT_IDS:
+        value = max(value, 0.60)
+    return round(value, 2)
+
+
 HAZARD_KEYWORDS = [
     "smoke",
     "spark",
@@ -541,6 +566,8 @@ HAZARD_KEYWORDS = [
     "water",
     "wet",
     "hot to touch",
+    "hot-to-touch",
+    "smells like burning",
 ]
 
 STOP_USING_ADVICE = [
@@ -785,7 +812,7 @@ class FaultDiagnosisEngine:
             primary_diag = {
                 "fault_id": "INCONCLUSIVE_INSPECTION_RECOMMENDED",
                 "fault_title": "Inconclusive - professional inspection recommended",
-                "confidence_score": 0.15,
+                "confidence_score": _displayed_confidence(0.15, "INCONCLUSIVE_INSPECTION_RECOMMENDED"),
                 "severity": "LOW",
                 "repair_complexity": "Unknown",
                 "recommendation": "SERVICE (Professional)",
@@ -814,7 +841,7 @@ class FaultDiagnosisEngine:
         else:
             top = scored_candidates[0]
             primary_rule = top["rule"]
-            confidence_level = top["score"]
+            confidence_level = _displayed_confidence(top["score"], primary_rule.fault_id)
             diagnosis_note = f"High confidence rule match for '{primary_rule.title}' based on provided symptoms."
             evidence = top["evidence"]
 
@@ -842,7 +869,7 @@ class FaultDiagnosisEngine:
                 alternatives.append({
                     "fault_id": alt_rule.fault_id,
                     "fault_title": alt_rule.title,
-                    "confidence_score": item["score"],
+                    "confidence_score": _displayed_confidence(item["score"], alt_rule.fault_id),
                     "recommendation": alt_rule.recommendation,
                     "supporting_evidence": item["evidence"]
                 })
@@ -988,7 +1015,9 @@ Return ONLY valid JSON with this exact schema:
             result["diagnosis"] = {
                 "primary_fault": matched_rule.title,
                 "fault_id": matched_rule.fault_id,
-                "confidence": max(0.0, min(1.0, float(data.get("confidence", 0.8)))),
+                "confidence": _displayed_confidence(
+                    data.get("confidence", 0.8), matched_rule.fault_id
+                ),
                 "severity": matched_rule.severity,
                 "reasoning": data.get("reasoning", matched_rule.rationale),
                 "supporting_evidence": safety_eval["safety_reasons"] or [data.get("reasoning", "")],
@@ -1042,11 +1071,13 @@ Return ONLY valid JSON with this exact schema:
 
         answers = result.get("answers", {})
         findings = result.get("detected_findings", [])
+        free_text = result.get("free_text")
+        safety_text_parts = [part for part in (free_text, " ".join(findings) if findings else None) if part]
 
         # Shared safety evaluation
         safety_eval = evaluate_safety(
             answers=answers,
-            free_text=" ".join(findings) if findings else None,
+            free_text=" ".join(safety_text_parts) if safety_text_parts else None,
             existing_safety_alert=bool(result.get("safety_alert")),
             existing_requires_pro=bool(result.get("requires_professional_attention"))
         )
@@ -1071,6 +1102,8 @@ Return ONLY valid JSON with this exact schema:
             cleaned = str(ans).strip()
             if cleaned.lower() not in neutral_answers:
                 symptom_values.append(cleaned)
+        if free_text:
+            symptom_values.append(str(free_text).strip())
 
         combined_symptoms = ". ".join(symptom_values) or "Device is not operating as expected."
 
@@ -1108,7 +1141,7 @@ Return ONLY valid JSON with this exact schema:
         result["diagnosis"] = {
             "primary_fault": primary["fault_title"],
             "fault_id": primary["fault_id"],
-            "confidence": primary["confidence_score"],
+            "confidence": _displayed_confidence(primary["confidence_score"], primary["fault_id"]),
             "severity": primary["severity"],
             "supporting_evidence": primary["supporting_evidence"] + safety_eval["safety_reasons"],
             "safe_checks": safe_checks,

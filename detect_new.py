@@ -260,6 +260,109 @@ def detect_video(video_path, target_devices=DEFAULT_TARGET_DEVICES, conf=0.25,
     }
 
 
+def _frame_sharpness(frame):
+    import cv2
+    gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+    return float(cv2.Laplacian(gray, cv2.CV_64F).var())
+
+
+def extract_sample_frames(video_path, min_count=3, max_count=5, frame_step=15, max_calls=40):
+    """Extract 3–5 evenly spaced frames. Roboflow call count stays within frame_step/max_calls."""
+    import cv2
+
+    video_path = resolve_path(video_path)
+    capture = cv2.VideoCapture(str(video_path))
+    if not capture.isOpened():
+        raise ValueError(f"Could not open video: {video_path}")
+
+    total = int(capture.get(cv2.CAP_PROP_FRAME_COUNT)) or 0
+    n = min(max_count, max_calls)
+    if total:
+        max_by_step = max(1, math.ceil(total / max(frame_step, 1)))
+        n = max(1, min(n, max_by_step, total, max_count))
+        if n == 1:
+            indices = [0] if total == 1 else [total // 2]
+        else:
+            indices = [int(round(i * (total - 1) / (n - 1))) for i in range(n)]
+        frames = []
+        for idx in indices:
+            capture.set(cv2.CAP_PROP_POS_FRAMES, idx)
+            ok, frame = capture.read()
+            if ok:
+                frames.append({"index": idx, "frame": frame})
+        capture.release()
+        return frames, video_path
+
+    frames = []
+    index = 0
+    while True:
+        ok, frame = capture.read()
+        if not ok:
+            break
+        frames.append({"index": index, "frame": frame})
+        index += 1
+    capture.release()
+    if not frames:
+        return [], video_path
+    n = min(max_count, max(min_count, 1), len(frames), max_calls)
+    if n == 1:
+        chosen = [frames[len(frames) // 2]]
+    else:
+        picks = [int(round(i * (len(frames) - 1) / (n - 1))) for i in range(n)]
+        chosen = [frames[i] for i in picks]
+    return chosen, video_path
+
+
+def detect_sampled_frames(video_path, target_devices=DEFAULT_TARGET_DEVICES, conf=0.25,
+                          frame_step=15, max_calls=40):
+    """Run detect_image-style inference on 3–5 evenly spaced video frames.
+
+    Keeps the sharpest frame (Laplacian variance). Roboflow errors print one line
+    and continue with empty detections for that frame.
+    """
+    import cv2
+
+    sampled, video_path = extract_sample_frames(
+        video_path, min_count=3, max_count=5, frame_step=frame_step, max_calls=max_calls
+    )
+    out_dir = OUTPUT_DIR / "video_frames"
+    out_dir.mkdir(parents=True, exist_ok=True)
+
+    frame_results = []
+    best = None
+    for item in sampled:
+        sharpness = _frame_sharpness(item["frame"])
+        detections = []
+        try:
+            detections = filter_detections(run_inference(item["frame"], conf), target_devices)
+        except Exception as error:
+            print(f"[WARNING] Roboflow request failed: {error}")
+        image_path = out_dir / f"{video_path.stem}_frame_{item['index']}.jpg"
+        ok, buf = cv2.imencode(".jpg", item["frame"])
+        if ok:
+            buf.tofile(str(image_path))
+        rec = {
+            "index": item["index"],
+            "sharpness": sharpness,
+            "detections": detections,
+            "image_path": str(image_path),
+        }
+        frame_results.append(rec)
+        if best is None or sharpness > best["sharpness"]:
+            best = rec
+
+    any_hits = any(r["detections"] for r in frame_results)
+    return {
+        "filename": video_path.name,
+        "image_path": best["image_path"] if best else str(video_path),
+        "best_frame": best,
+        "frames": frame_results,
+        "detections": (best or {}).get("detections", []),
+        "device_type": DETECTED_DEVICE_TYPE if any_hits else None,
+        "output": best["image_path"] if best else None,
+    }
+
+
 def main():
     parser = argparse.ArgumentParser(description="AI Repair Assistant - Device Detector")
     parser.add_argument("--mode", choices=["image", "video"], help="Input mode: image or video")

@@ -272,7 +272,7 @@ def save_report(report, source_name="manual"):
 
 def run_pipeline(image_path=None, device_type=None, confidence=0.25, age_years=None,
                  replacement_cost=None, gemma_backend="auto", enable_second_opinion=False,
-                 video_path=None, describe=None, demo=False):
+                 video_path=None, describe=None, demo=False, skip_prompts=False):
     print("\n" + "=" * 72 + "\n REPAIR BEFORE REPLACE - INTEGRATED PIPELINE\n" + "=" * 72)
     if demo:
         describe = DEMO_DESCRIPTION
@@ -341,7 +341,7 @@ def run_pipeline(image_path=None, device_type=None, confidence=0.25, age_years=N
         elif payload["findings"]:
             payload["device_type"] = "laptop"
         else:
-            payload["device_type"] = device_type or choose_device()
+            payload["device_type"] = device_type or ("laptop" if skip_prompts else choose_device())
     if cv_result:
         for item in cv_result.get("findings", []):
             payload["findings"].append(
@@ -360,14 +360,14 @@ def run_pipeline(image_path=None, device_type=None, confidence=0.25, age_years=N
         payload["safety_alert"] = True
 
     print("\n[3/5] Collecting symptoms and running diagnosis...")
-    # When a hard hazard is found, skip prompts to produce report early and safely
+    # When a hard hazard is found or running via non-interactive web API, skip prompts
     report = run_questionnaire(
         payload,
         image_path=str(source_image) if source_image else None,
         run_diagnosis=True,
         scripted_answers=DEMO_SCRIPTED_ANSWERS if demo else None,
         free_text=describe,
-        skip_prompts=demo or force_service,
+        skip_prompts=demo or force_service or skip_prompts,
         use_gemini=False if (demo or force_service) else True,
     )
 

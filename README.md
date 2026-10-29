@@ -11,7 +11,8 @@ Many electronic devices are replaced prematurely not because they are unfixable,
 The system is architected as an explainable, deterministic pipeline where **safety always beats diagnosis, and LLMs never decide financial or repair verdicts**.
 
 ```
-[ Photo / Video / Text Input ]
+[ User Input ]
+(Web UI / CLI: Photo, Video, or Text Description)
               │
               ▼
     1. detect_new.py (Roboflow Inference)
@@ -50,8 +51,9 @@ The system is architected as an explainable, deterministic pipeline where **safe
        - Never invents faults, parts, or prices
               │
               ▼
-    7. assistant.py (Integrated CLI & Report Generator)
-       - Orchestrates pipeline, renders terminal report, and saves JSON artifact
+    7. assistant.py / server.py (CLI Orchestrator & FastAPI Web Server)
+       - CLI: Formats terminal report & outputs timestamped JSON
+       - Web: Serves interactive frontend & REST API at http://127.0.0.1:8000
 ```
 
 ---
@@ -89,7 +91,7 @@ The system is architected as an explainable, deterministic pipeline where **safe
 
 ### Installation
 
-Clone the repository and install the minimal dependencies:
+Clone the repository and install dependencies:
 
 ```bash
 git clone https://github.com/adityakudva/Repair-Before-Replace.git
@@ -116,53 +118,67 @@ cp .env.example .env
 
 ---
 
-## Usage
+## How to Run the Project
 
-### 1. Offline Demo Mode (Zero Network Calls)
+### Option A: Interactive Web UI (FastAPI)
 
+Launch the web application with a single command:
+
+```bash
+uvicorn server:app --reload --port 8000
+```
+or:
+```bash
+python server.py
+```
+
+Open your browser and navigate to:
+👉 **`http://127.0.0.1:8000`**
+
+**Web UI Features**:
+- **Execution Mode Tabs**: Switch seamlessly between **Text Description**, **Upload Photo**, **Upload Video**, and **Offline Demo**.
+- **Interactive Form**: Enter device type, age, and optional replacement price overrides.
+- **Instant Results Card**: Displays the canonical verdict badge, likely faults, parts cost vs savings, tiered safe checks, critical safety alerts, and e-waste avoided.
+
+---
+
+### Option B: Command Line Interface (CLI)
+
+#### 1. Offline Demo Mode (Zero Network Calls)
 Runs an end-to-end diagnosis using offline scripted inputs and built-in templates:
-
 ```bash
 python assistant.py --demo
 ```
 
-### 2. Image Input
-
+#### 2. Image Input
 Diagnose a laptop from a photo:
-
 ```bash
 python assistant.py --image path/to/laptop.jpg
 ```
 
-### 3. Video Input
-
+#### 3. Video Input
 Extracts 3–5 sharpest frames, performs multi-frame damage analysis, and merges visual findings:
-
 ```bash
 python assistant.py --video path/to/laptop_video.mp4
 ```
 
-### 4. Free-Text Description Only
-
+#### 4. Free-Text Description Only
 Run diagnosis directly from symptoms:
-
 ```bash
 python assistant.py --describe "laptop turns on but screen stays black, fan is spinning"
 ```
 
-### 5. Interactive Combination with Age and Cost Overrides
-
+#### 5. Interactive Combination with Age and Cost Overrides
 ```bash
 python assistant.py --image laptop.jpg --age 3.5 --replacement-cost 55000
 ```
-
 *(If `--age` or `--replacement-cost` are omitted, the assistant prompts interactively: press `Enter` to use defaults).*
 
 ---
 
 ## Testing
 
-Run the unit test suite:
+Run the comprehensive unit test suite:
 
 ```bash
 python -m unittest test_fault_engine.py -v
@@ -184,6 +200,7 @@ python test_all_devices.py
   - Deterministic 3-way verdicts, e-waste metrics, and safety-stop guarantees.
   - Device Registry architecture (`DEVICE_REGISTRY = {"laptop": [...]}`).
   - Unsupported device protection: entering household appliances (fans, bulbs, TVs, microwaves, phones) returns structured polite notices with electrical safety advice, preventing misdiagnoses or crashes.
+  - Interactive Web Application with FastAPI backend and modern responsive frontend.
 
 - [ ] **Phase 2 (Registry Expansion)**:
   - Add smartphones and tablets (`DEVICE_REGISTRY["smartphone"]`).

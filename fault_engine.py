@@ -1,24 +1,15 @@
 """
-AI Repair Assistant - Rule-Based Fault Diagnosis Engine
-Grounded in deterministic, expert-curated decision rules for household & electronic devices:
-  - Fans (Ceiling, Table, Exhaust)
-  - Laptops / Notebooks
-  - Bulbs (LED, Incandescent, Fluorescent)
-  - Switchboards / Sockets / Circuit Breakers
+AI Repair Assistant - Rule-Based Fault Diagnosis Engine (Laptops & PCs)
+Deterministic, expert-curated decision rules for computer hardware diagnosis.
 
-Combines object detection results with user-reported symptoms to produce:
-  1. Primary & Secondary Fault Identifications
-  2. Supporting Evidence
-  3. Safety Risk & Precaution Warnings
-  4. Step-by-Step Troubleshooting / Verification
-  5. Repair Complexity (Low / Medium / High / Dangerous)
-  6. Final Actionable Recommendation (REPAIR DIY, SERVICE PRO, REPLACE)
+MVP scope: full depth for laptops/PCs only, built around an extensible DEVICE_REGISTRY.
+Unsupported devices return a structured "unsupported_device" result with general safety advice.
 """
 
 from typing import Dict, List, Any, Optional
-import re
 import os
 import json
+import re
 from pathlib import Path
 from dataclasses import dataclass, asdict
 
@@ -29,667 +20,635 @@ class FaultRule:
     title: str
     severity: str          # "LOW", "MEDIUM", "HIGH", "CRITICAL"
     complexity: str        # "Low (Beginner)", "Medium (Intermediate)", "High (Advanced)", "Dangerous (Do Not DIY)"
-    recommendation: str    # "REPAIR (DIY)", "SERVICE (Professional)", "REPLACE (New Device)"
+    recommendation: str    # "REPAIR (DIY)", "SERVICE (Professional)", "REPLACE"
     rationale: str
     required_tools: List[str]
     estimated_cost: str
     estimated_time: str
     safety_warnings: List[str]
-    troubleshooting_steps: List[str]
+    safe_checks: List[str]       # Non-invasive, no tools, no opening the chassis
+    advanced_steps: List[str]    # Opening the chassis, repasting, reseating; EMPTY for CRITICAL/SERVICE-only rules
     positive_keywords: List[str]
     negative_keywords: List[str]
     common_symptoms: List[str]
-    co_occurrence_patterns: List[List[str]]  # High-confidence combos
+    co_occurrence_patterns: List[List[str]]
+
+    @property
+    def troubleshooting_steps(self) -> List[str]:
+        """Backward-compatible combination of safe_checks + advanced_steps."""
+        return self.safe_checks + self.advanced_steps
 
 
-# ---------------------------------------------------------------------------
-# EXPERT KNOWLEDGE BASE
-# ---------------------------------------------------------------------------
+# ===========================================================================
+# EXPERT KNOWLEDGE BASE: LAPTOPS & PCS (10 Comprehensive Rules)
+# ===========================================================================
 
+LAPTOP_RULES: List[FaultRule] = [
+    # 1. Dead Battery / Charger / DC Jack
+    FaultRule(
+        fault_id="LAPTOP_DEAD_BATTERY_CHARGER",
+        title="Faulty Power Adapter / Dead Battery / DC Jack Failure",
+        severity="MEDIUM",
+        complexity="Low (Beginner)",
+        recommendation="REPAIR (DIY / Replace Adapter)",
+        rationale="Replacing an external AC adapter or testing wall power requires no internal laptop teardown.",
+        required_tools=["Compatible OEM Charger", "Voltmeter / Multimeter", "Alternative confirmed wall outlet"],
+        estimated_cost="₹800 - ₹2,500 ($10 - $30)",
+        estimated_time="10 - 15 minutes",
+        safety_warnings=[
+            "Never use generic unbranded cheap chargers; they can cause voltage spikes and thermal runaway.",
+            "If the charger brick or cable is excessively hot or smells of burnt plastic, unplug immediately."
+        ],
+        safe_checks=[
+            "1. Perform an EC (Embedded Controller) reset: Unplug charger, hold power button down for 30 full seconds, then release.",
+            "2. Inspect the charger cable for kinks, fraying, or loose pins in the charging connector.",
+            "3. Try plugging into a different confirmed working wall socket without an extension strip.",
+            "4. Check if the LED charging indicator illuminates when the charger is connected."
+        ],
+        advanced_steps=[
+            "1. Disconnect AC charger and internal battery.",
+            "2. Inspect the internal DC-in power jack harness for cracked solder joints or broken center pin.",
+            "3. Measure DC adapter output voltage with a multimeter to ensure rated output voltage is present."
+        ],
+        positive_keywords=[
+            "won't turn on", "wont turn on", "not turning on", "dead", "no power",
+            "not charging", "charger", "plugged in not charging", "battery dies",
+            "dc jack", "charging port", "no power or lights", "does not charge / no power"
+        ],
+        negative_keywords=["black screen", "blue screen", "spill", "water", "lights on", "fan spinning", "turn on but no display"],
+        common_symptoms=[
+            "Laptop completely dead, no lights or fan activity when pressing power button",
+            "Battery does not charge when plugged in, or drops to 0% immediately when unplugged",
+            "Charging only works when wiggling the charger cable at a specific angle"
+        ],
+        co_occurrence_patterns=[
+            ["not charging", "battery"],
+            ["wont turn on", "charger"],
+            ["dead", "plugged in"]
+        ]
+    ),
+
+    # 2. Overheating / Clogged Fan / Dried Thermal Paste
+    FaultRule(
+        fault_id="LAPTOP_OVERHEATING_DUST_THERMAL",
+        title="Thermal Throttling / Clogged Heatsink / Dried Thermal Paste",
+        severity="MEDIUM",
+        complexity="Medium (Intermediate)",
+        recommendation="REPAIR (DIY) / SERVICE (Professional)",
+        rationale="Cleaning heatsink fins with compressed air and repasting thermal compound restores normal operating temperatures and stops thermal shutdowns.",
+        required_tools=["Precision Screwdriver Set (PH00/T5)", "Compressed Air Can", "High-performance Thermal Paste (Arctic MX-4/Noctua)", "Isopropyl Alcohol (99%)"],
+        estimated_cost="₹300 - ₹600 ($4 - $8)",
+        estimated_time="30 - 45 minutes",
+        safety_warnings=[
+            "Always unplug the battery cable from the motherboard before touching heatsinks or fans.",
+            "Use an anti-static wrist strap or touch a grounded metal object to prevent ESD damage."
+        ],
+        safe_checks=[
+            "1. Elevate the rear of the laptop by 1 inch on a hard, flat surface to ensure air intakes are unobstructed.",
+            "2. Feel the exhaust vent during use: if the fan is screaming but almost no warm air exits, the heatsink grill is clogged with lint.",
+            "3. Run hardware temperature monitoring software (e.g. HWMonitor, CoreTemp) to verify if CPU/GPU reaches 95°C+."
+        ],
+        advanced_steps=[
+            "1. Power off, remove bottom cover with precision screwdrivers, and disconnect the battery connector.",
+            "2. Hold the fan blades gently (do not let them over-spin) and blow dust out with compressed air.",
+            "3. Unscrew the copper heatsink assembly in reverse diagonal sequence (4-3-2-1).",
+            "4. Clean old hardened paste from CPU/GPU dies using 99% isopropyl alcohol and a lint-free wipe.",
+            "5. Apply a pea-sized dot of new high-grade thermal paste and reassemble heatsink firmly."
+        ],
+        positive_keywords=[
+            "overheat", "overheating", "hot", "very hot", "fan loud", "fan noise",
+            "shuts down randomly", "thermal throttling", "lagging", "high temp",
+            "thermal paste", "runs unusually hot", "thermal shutdown"
+        ],
+        negative_keywords=["liquid", "spill", "water", "cracked", "fan stopped", "fan not spinning"],
+        common_symptoms=[
+            "Laptop gets extremely hot underneath, especially near the exhaust vent",
+            "Cooling fan runs at maximum 100% speed continuously",
+            "Laptop suddenly shuts down or restarts under heavy load (thermal protection)"
+        ],
+        co_occurrence_patterns=[
+            ["hot", "fan"],
+            ["overheating", "shuts down"],
+            ["loud", "fan"],
+            ["thermal", "throttling"]
+        ]
+    ),
+
+    # 3. Display / RAM Contact Issue (Black screen with power)
+    FaultRule(
+        fault_id="LAPTOP_DISPLAY_RAM_ISSUE",
+        title="Black Screen / RAM Contact Oxidation / Loose Display Cable",
+        severity="MEDIUM",
+        complexity="Medium (Intermediate)",
+        recommendation="REPAIR (DIY)",
+        rationale="Reseating RAM sticks with an eraser or reconnecting the eDP display cable fixes 80% of 'power on with black screen' problems.",
+        required_tools=["Precision Phillips/Torx screwdriver", "Clean Pencil Eraser", "Microfiber cloth"],
+        estimated_cost="₹0 ($0)",
+        estimated_time="20 - 30 minutes",
+        safety_warnings=[
+            "Disconnect the battery before touching RAM slots or the display eDP cable. Shorting display pins can burn the motherboard backlight fuse!"
+        ],
+        safe_checks=[
+            "1. Connect the laptop to an external TV or monitor via HDMI.",
+            "2. If external monitor displays the desktop normally, the motherboard and GPU are fine; the issue is internal panel, cable, or backlight.",
+            "3. Check Caps Lock / Num Lock: if the light toggles on and off when pressed, the OS is booting properly behind the dark screen.",
+            "4. Shine a bright flashlight at an angle at the dark screen: if faint desktop icons are visible, the panel backlight or fuse has failed."
+        ],
+        advanced_steps=[
+            "1. Power off, open bottom chassis, and disconnect the battery cable from the motherboard.",
+            "2. Unclip the RAM modules and remove them.",
+            "3. Rub the golden contact pins on both sides of each RAM stick with a clean pencil eraser to remove microscopic oxidation.",
+            "4. Reinsert RAM firmly into the slots at a 30-degree angle and click down. Reconnect battery and test boot."
+        ],
+        positive_keywords=[
+            "black screen", "blank screen", "no display", "screen dark",
+            "keyboard lights up no display", "caps lock blinking", "ram", "display cable",
+            "external monitor", "lights/fan turn on but no display", "lights turn on but no display",
+            "beep code", "blinking diagnostic led"
+        ],
+        negative_keywords=["spill", "water", "cracked", "screen crack", "broken glass"],
+        common_symptoms=[
+            "Power LED and fan turn on, but the screen stays pitch black with no logo",
+            "Caps Lock light blinks in a rhythmic diagnostic code",
+            "External monitor works but built-in screen remains completely black"
+        ],
+        co_occurrence_patterns=[
+            ["lights", "no display"],
+            ["fan", "no display"],
+            ["black screen", "power"],
+            ["caps lock", "blink"],
+            ["blank", "lights"]
+        ]
+    ),
+
+    # 4. Liquid Ingress / Corrosion Hazard (CRITICAL, SERVICE ONLY)
+    FaultRule(
+        fault_id="LAPTOP_LIQUID_SPILL",
+        title="Liquid Ingress / Motherboard Corrosion Hazard",
+        severity="CRITICAL",
+        complexity="Dangerous (Do Not DIY)",
+        recommendation="SERVICE (Professional)",
+        rationale="Liquid causes galvanic corrosion and micro-shorts under surface-mount BGAs. Requires immediate professional ultrasonic cleaning and board drying.",
+        required_tools=["Professional Ultrasonic Cleaner", "99% Isopropyl Alcohol", "Stereo Inspection Microscope"],
+        estimated_cost="₹1,500 - ₹5,000 ($20 - $60)",
+        estimated_time="1 - 3 business days",
+        safety_warnings=[
+            "CRITICAL FIRE & SHORT HAZARD: DO NOT TURN ON THE LAPTOP. DO NOT PLUG IN THE CHARGER.",
+            "Leaving power on with liquid present causes instant electrolysis that permanently eats through copper motherboard traces."
+        ],
+        safe_checks=[
+            "1. IMMEDIATELY disconnect the AC charger from the wall and the laptop.",
+            "2. Force power OFF by holding the power button for 10 full seconds if device was running.",
+            "3. Place the laptop in an inverted 'tent' (V-shape) on a towel so liquid drains away from internal circuits.",
+            "4. DO NOT use a hairdryer (it blows liquid deeper under chips and warps plastic keyboard membranes).",
+            "5. DO NOT use uncooked rice (starch dust enters ports and accelerates corrosion)."
+        ],
+        advanced_steps=[],  # EMPTY: CRITICAL / SERVICE-only rule
+        positive_keywords=[
+            "spill", "liquid", "water", "coffee", "tea", "juice", "wet",
+            "poured", "dropped in water", "liquid spill", "liquid exposure"
+        ],
+        negative_keywords=[],
+        common_symptoms=[
+            "Liquid was spilled onto keyboard, trackpad, or vents",
+            "Laptop turned off immediately after liquid contact",
+            "Sticky keys or crackling sound inside the laptop"
+        ],
+        co_occurrence_patterns=[
+            ["water", "spill"],
+            ["coffee", "keyboard"],
+            ["liquid", "wet"],
+            ["spill", "laptop"]
+        ]
+    ),
+
+    # 5. Physical Screen Damage / Cracked LCD
+    FaultRule(
+        fault_id="LAPTOP_PHYSICAL_SCREEN_DAMAGE",
+        title="Cracked LCD / OLED Display Panel (Physical Impact)",
+        severity="MEDIUM",
+        complexity="Medium (Intermediate)",
+        recommendation="REPLACE (Display Panel Assembly)",
+        rationale="Cracked glass or severed liquid crystal matrix cannot be repaired with software or soldering; it requires replacing the internal display panel.",
+        required_tools=["Plastic Spudger / Prying Tool", "Precision Screwdriver PH00", "Replacement OEM Screen Panel"],
+        estimated_cost="₹2,500 - ₹6,000 ($30 - $75)",
+        estimated_time="30 - 45 minutes",
+        safety_warnings=[
+            "Disconnect the battery and AC charger before touching the eDP display cable to avoid blowing the motherboard backlight fuse."
+        ],
+        safe_checks=[
+            "1. Connect laptop to an external monitor via HDMI to verify that GPU and motherboard boot successfully.",
+            "2. If external monitor displays the OS, the core system is healthy and only the screen panel requires replacement."
+        ],
+        advanced_steps=[
+            "1. Disconnect AC charger and internal battery.",
+            "2. Remove the screen bezel frame using a plastic pry tool.",
+            "3. Unscrew LCD panel mounting brackets and note the panel part number sticker on the back (e.g. NV156FHM-N48).",
+            "4. Unclip the 30-pin or 40-pin eDP video connector gently.",
+            "5. Install the replacement panel, reconnect eDP cable firmly, test before snapping bezel back."
+        ],
+        positive_keywords=[
+            "screen crack", "crack", "cracked", "broken screen", "shattered",
+            "ink bleed", "black spots", "lines on screen", "cracked or physically damaged"
+        ],
+        negative_keywords=[],
+        common_symptoms=[
+            "Visible crack, hairline fracture, or spiderweb pattern on the display glass",
+            "Ink-bleed blotches or black circular voids on the screen",
+            "Vertical or horizontal colored lines with fractured glass"
+        ],
+        co_occurrence_patterns=[
+            ["screen", "crack"],
+            ["broken", "display"],
+            ["cracked", "glass"]
+        ]
+    ),
+
+    # 6. SSD / HDD Storage Drive Failure
+    FaultRule(
+        fault_id="LAPTOP_STORAGE_DRIVE_FAILURE",
+        title="SSD / HDD Storage Drive Failure or Missing Boot Device",
+        severity="MEDIUM",
+        complexity="Medium (Intermediate)",
+        recommendation="REPAIR (DIY)",
+        rationale="Solid-state drives degrade or corrupt over time. Swapping an M.2 NVMe SSD takes 20 minutes with a single screwdriver.",
+        required_tools=["Precision Screwdriver PH00", "USB Flash Drive (OS Installer)", "Replacement M.2 NVMe SSD / 2.5-inch SATA SSD"],
+        estimated_cost="₹2,000 - ₹5,500 ($25 - $65)",
+        estimated_time="20 - 35 minutes",
+        safety_warnings=[
+            "Disconnect the battery before unseating or installing storage drives.",
+            "Back up any accessible personal data before running disk formatting tools."
+        ],
+        safe_checks=[
+            "1. Reboot laptop and enter BIOS setup (F2/F12/Del) to check if the internal SSD/HDD is detected in the storage menu.",
+            "2. Check if a USB drive or SD card is inserted that may be interrupting boot order.",
+            "3. Run manufacturer hardware diagnostics from the boot menu (e.g. Dell ePSA, HP Diagnostics)."
+        ],
+        advanced_steps=[
+            "1. Power off, disconnect charger, open bottom panel, and unplug battery connector.",
+            "2. Locate the M.2 NVMe drive slot.",
+            "3. Unscrew the mounting screw, gently pull out the SSD at a 30-degree angle, and reinsert it firmly to ensure solid contact.",
+            "4. If drive is dead, install a new M.2 NVMe SSD, fasten the screw, reassemble, and reinstall OS using USB installer media."
+        ],
+        positive_keywords=[
+            "no boot device", "no bootable device", "ssd not detected", "hdd not detected",
+            "hard drive failure", "drive not found", "boot device not found", "smart error",
+            "reboot and select proper boot device", "storage", "no boot device / ssd or hdd not detected"
+        ],
+        negative_keywords=["black screen", "water", "spill"],
+        common_symptoms=[
+            "Error screen on boot: 'No bootable device found' or 'Hard Drive - Not Installed'",
+            "SSD or HDD missing from BIOS hardware list",
+            "System freezes on Windows logo with S.M.A.R.T. disk failure alert"
+        ],
+        co_occurrence_patterns=[
+            ["no boot", "device"],
+            ["ssd", "not detected"],
+            ["drive", "not found"],
+            ["storage", "error"]
+        ]
+    ),
+
+    # 7. Swollen / Bulging Li-ion Battery (CRITICAL, SERVICE ONLY)
+    FaultRule(
+        fault_id="LAPTOP_SWOLLEN_BATTERY",
+        title="Swollen / Bulging Li-ion Battery Pouch (Severe Fire Hazard)",
+        severity="CRITICAL",
+        complexity="Dangerous (Do Not DIY)",
+        recommendation="SERVICE (Professional)",
+        rationale="Lithium-ion polymer pouch cells produce hazardous gas when internal layers fail. Puncturing or charging a swollen battery presents severe fire and toxic smoke risks.",
+        required_tools=["Fireproof Battery Container", "Authorized Service Center Disposal Unit"],
+        estimated_cost="₹2,500 - ₹5,000 ($30 - $60)",
+        estimated_time="1 - 2 business days",
+        safety_warnings=[
+            "CRITICAL FIRE HAZARD: DO NOT CHARGE OR PRESS ON A SWOLLEN BATTERY.",
+            "Never puncture, bend, or force open a bulging battery. Escaping gas can self-ignite upon contact with oxygen."
+        ],
+        safe_checks=[
+            "1. Stop using and disconnect charger from the wall immediately.",
+            "2. Do not press down on the bulging trackpad, keyboard, or warped bottom chassis.",
+            "3. Place laptop in a well-ventilated, non-flammable area (e.g. tile/concrete surface) away from combustible fabrics.",
+            "4. Transport to an authorized repair technician or battery recycling center for safe disposal."
+        ],
+        advanced_steps=[],  # EMPTY: CRITICAL / SERVICE-only rule
+        positive_keywords=[
+            "swollen battery", "battery swollen", "bulging", "bulging battery",
+            "trackpad lifting", "chassis expanding", "battery pushing up",
+            "battery looks swollen", "swollen"
+        ],
+        negative_keywords=[],
+        common_symptoms=[
+            "Trackpad is physically pushed up above the palmrest surface",
+            "Bottom chassis is warped or screws are pulling out from battery bulge",
+            "Battery reported as swollen or bulging in questionnaire"
+        ],
+        co_occurrence_patterns=[
+            ["battery", "swollen"],
+            ["trackpad", "lifting"],
+            ["battery", "bulging"],
+            ["chassis", "expanding"]
+        ]
+    ),
+
+    # 8. Keyboard / Touchpad Hardware Failure
+    FaultRule(
+        fault_id="LAPTOP_KEYBOARD_TOUCHPAD_FAILURE",
+        title="Keyboard Membrane / Touchpad Controller Hardware Failure",
+        severity="LOW",
+        complexity="Medium (Intermediate)",
+        recommendation="REPAIR (DIY) / SERVICE (Professional)",
+        rationale="Individual non-working keys or frozen trackpad can be resolved by reseating the ribbon cable or replacing the keyboard deck.",
+        required_tools=["Precision Screwdriver Set", "Plastic Spudger", "Replacement Keyboard/Trackpad Assembly"],
+        estimated_cost="₹1,200 - ₹3,500 ($15 - $45)",
+        estimated_time="30 - 60 minutes",
+        safety_warnings=[
+            "Disconnect power and internal battery before handling keyboard ribbon ZIF connectors."
+        ],
+        safe_checks=[
+            "1. Plug in an external USB keyboard/mouse to confirm the OS and USB controllers respond normally.",
+            "2. Open Device Manager, uninstall the keyboard/touchpad driver, and restart laptop to reload drivers.",
+            "3. Inspect keys for trapped dust or debris and blow clean with compressed air."
+        ],
+        advanced_steps=[
+            "1. Disconnect battery and charger.",
+            "2. Inspect the keyboard and touchpad ribbon cables connecting to the motherboard.",
+            "3. Ensure the locking latch on the ZIF connector is fully seated and not loose.",
+            "4. If key traces are broken, unfasten keyboard bracket and install a replacement OEM keyboard."
+        ],
+        positive_keywords=[
+            "keyboard not working", "keys not working", "keys typing wrong",
+            "touchpad unresponsive", "trackpad not clicking", "cursor not moving",
+            "stuck keys", "keyboard typing random", "touchpad not working"
+        ],
+        negative_keywords=["black screen", "spill", "water"],
+        common_symptoms=[
+            "Specific rows of keys or individual keys do not register keystrokes",
+            "Touchpad does not register tap, gesture, or physical click",
+            "Keyboard types repeated ghost characters without input"
+        ],
+        co_occurrence_patterns=[
+            ["keyboard", "not working"],
+            ["keys", "not working"],
+            ["touchpad", "unresponsive"],
+            ["trackpad", "clicking"]
+        ]
+    ),
+
+    # 9. Motherboard Power Delivery / Surge Failure (CRITICAL, SERVICE ONLY)
+    FaultRule(
+        fault_id="LAPTOP_MOTHERBOARD_SURGE_POWER_FAILURE",
+        title="Motherboard Power Circuit / VRM Damage from Electrical Surge",
+        severity="CRITICAL",
+        complexity="Dangerous (Do Not DIY)",
+        recommendation="SERVICE (Professional)",
+        rationale="Power surges destroy high-side MOSFETs, power management ICs, and decoupling capacitors. Requires diagnostic micro-soldering.",
+        required_tools=["Bench Power Supply", "Hot Air Rework Station", "Multimeter with Micro-probes"],
+        estimated_cost="₹3,500 - ₹9,000 ($45 - $110)",
+        estimated_time="2 - 5 business days",
+        safety_warnings=[
+            "ELECTRICAL & FIRE HAZARD: Do not repeatedly press the power button or leave plugged in after a surge.",
+            "Short-circuited input capacitors can heat up rapidly and char the motherboard PCB."
+        ],
+        safe_checks=[
+            "1. Immediately disconnect charger and do not plug back into the wall.",
+            "2. Smell around the charging port and exhaust vents for acrid burnt silicone/resin odor.",
+            "3. Inspect the power adapter brick: if it is blackened or made a loud pop during the event, it is destroyed."
+        ],
+        advanced_steps=[],  # EMPTY: CRITICAL / SERVICE-only rule
+        positive_keywords=[
+            "power surge", "electrical event", "surge", "short circuit",
+            "spark when plugged", "burnt odor", "dead after surge", "tripped breaker",
+            "power surge / electrical event", "no power after lightning"
+        ],
+        negative_keywords=["cracked", "display cable"],
+        common_symptoms=[
+            "Laptop completely dead after an electrical storm or wall socket spark",
+            "Burnt electrical smell coming from charging port or motherboard",
+            "AC adapter LED indicator turns off immediately when connected to laptop (dead short)"
+        ],
+        co_occurrence_patterns=[
+            ["power", "surge"],
+            ["electrical", "event"],
+            ["spark", "plugged"],
+            ["burnt", "power"]
+        ]
+    ),
+
+    # 10. Cooling Fan Failure / Seized Fan
+    FaultRule(
+        fault_id="LAPTOP_COOLING_FAN_FAILURE",
+        title="Seized, Burnt, or Broken Cooling Fan Motor",
+        severity="MEDIUM",
+        complexity="Medium (Intermediate)",
+        recommendation="REPAIR (DIY Fan Replacement) / SERVICE (Professional)",
+        rationale="Cooling fan bearings dry out or the small 5V brushless motor burns out. Swapping the fan unit restores airflow.",
+        required_tools=["Precision Screwdriver Set", "Replacement OEM Cooling Fan", "Thermal Paste", "Tweezers"],
+        estimated_cost="₹500 - ₹1,500 ($6 - $18)",
+        estimated_time="25 - 40 minutes",
+        safety_warnings=[
+            "Do not use the laptop under heavy load when the fan is stopped to avoid permanent GPU/CPU silicon degradation."
+        ],
+        safe_checks=[
+            "1. Check for startup error codes: 'CPU Fan Error' or 'System Fan 90B error'.",
+            "2. Shine a flashlight into the vent grill: observe if the fan blades spin at all during power-on.",
+            "3. Listen for rattling, grinding, or buzzing mechanical friction from the fan casing."
+        ],
+        advanced_steps=[
+            "1. Power off, disconnect battery, and remove bottom cover.",
+            "2. Unscrew fan bracket screws and unplug 4-pin PWM fan connector from motherboard.",
+            "3. Check if blades spin freely by hand; if stiff, bearings are seized.",
+            "4. Install replacement OEM fan unit, reconnect 4-pin cable firmly, and test before closing chassis."
+        ],
+        positive_keywords=[
+            "fan not spinning", "fan stopped", "fan error", "fan 90b",
+            "fan rattling", "fan grinding", "cooling fan dead", "cpu fan error", "fan failure"
+        ],
+        negative_keywords=["screen crack", "spill", "water"],
+        common_symptoms=[
+            "Cooling fan does not spin at all, even when laptop is hot",
+            "Fan makes harsh rattling, screeching, or buzzing noise",
+            "System displays 'Fan (90b) error' on startup screen"
+        ],
+        co_occurrence_patterns=[
+            ["fan", "not spinning"],
+            ["fan", "stopped"],
+            ["fan", "error"],
+            ["fan", "rattling"]
+        ]
+    ),
+]
+
+
+# ===========================================================================
+# DEVICE REGISTRY (Extensible dict: device_name -> rule_list)
+# ===========================================================================
+
+DEVICE_REGISTRY: Dict[str, List[FaultRule]] = {
+    "laptop": LAPTOP_RULES
+}
+registry = DEVICE_REGISTRY
+
+
+def is_device_supported(raw_device: str) -> bool:
+    return engine.normalize_device_name(raw_device) in DEVICE_REGISTRY
+
+
+def get_canonical_device(raw_device: str) -> Optional[str]:
+    canonical = engine.normalize_device_name(raw_device)
+    return canonical if canonical in DEVICE_REGISTRY else None
+
+# Aliases mapping to registry keys
+DEVICE_ALIASES: Dict[str, str] = {
+    "laptop": "laptop",
+    "pc": "laptop",
+    "notebook": "laptop",
+    "computer": "laptop",
+    "laptop computer": "laptop"
+}
+
+# Component names that the Roboflow model may return (all map to laptop)
+LAPTOP_COMPONENT_TERMS = {
+    "motherboard", "mainboard", "ram", "memory", "ssd", "hdd", "hard drive",
+    "storage", "battery", "cooling fan", "cpu fan", "heatsink",
+    "heat sink", "cpu", "processor", "gpu", "graphics card", "graphics",
+    "screen", "display", "lcd", "keyboard", "touchpad", "trackpad",
+    "charging port", "dc jack", "charger", "power adapter", "wifi card",
+    "wireless card", "speaker", "webcam", "usb port", "ram slot", "sodimm",
+    "vram", "cmos battery", "bios chip", "hinge", "laptop", "notebook",
+    "computer", "pc",
+}
+
+# Backward compatibility alias
 KNOWLEDGE_BASE: Dict[str, List[FaultRule]] = {
-    # =======================================================================
-    # 1. FAN (Ceiling / Table / Exhaust)
-    # =======================================================================
-    "fan": [
-        FaultRule(
-            fault_id="FAN_WEAK_CAPACITOR",
-            title="Degraded or Blown Start/Run Capacitor",
-            severity="MEDIUM",
-            complexity="Medium (Intermediate)",
-            recommendation="REPAIR (DIY)",
-            rationale="A 2.5uF/3.15uF capacitor is inexpensive (₹50-₹120) and easily replaced with basic screwdrivers.",
-            required_tools=["Insulated Screwdriver", "Wire Stripper", "Insulation Tape / Wire Nuts", "New Capacitor (2.5uF / 3.15uF 440V)"],
-            estimated_cost="₹50 - ₹150 ($1 - $2)",
-            estimated_time="20 - 30 minutes",
-            safety_warnings=[
-                "DANGER: Turn off the main electrical circuit breaker/isolator before touching any wires.",
-                "Capacitors store residual electric charge even when turned off. Discharge by shorting terminals with an insulated-handle screwdriver before handling."
-            ],
-            troubleshooting_steps=[
-                "1. Power OFF the fan switch and turn off the breaker.",
-                "2. Check if blades spin smoothly by hand. If they spin freely without friction, the bearings are fine and the capacitor is the culprit.",
-                "3. Remove the top decorative canopy to reveal the cylindrical capacitor.",
-                "4. Inspect capacitor for bulging, leakage, or oily residue.",
-                "5. Take a photo of wire connections for reference.",
-                "6. Swap with a new capacitor of the EXACT same rating (usually 2.5uF for standard ceiling fans).",
-                "7. Secure wire joints with wire nuts or heat-shrink tape and reassemble."
-            ],
-            positive_keywords=["hum", "humming", "slow", "slowly", "wont spin", "won't spin", "push to start", "spin by hand", "sluggish", "buzz", "buzzing", "capacitor"],
-            negative_keywords=["jammed", "stuck", "smoke", "burnt smell", "burning"],
-            common_symptoms=[
-                "Fan hums or buzzes but blades do not spin",
-                "Fan spins very slowly even at maximum regulator speed",
-                "Blades only start spinning after giving them a push by hand"
-            ],
-            co_occurrence_patterns=[
-                ["hum", "push"],
-                ["slow", "regulator"],
-                ["hum", "wont spin"],
-                ["buzz", "slow"]
-            ]
-        ),
-        FaultRule(
-            fault_id="FAN_JAMMED_BEARINGS",
-            title="Seized or Dry Bearings / Mechanical Friction",
-            severity="MEDIUM",
-            complexity="Medium (Intermediate)",
-            recommendation="SERVICE (Professional) / REPAIR (DIY with lubrication)",
-            rationale="Bearings have dried grease, rust, or grit. If light lubrication doesn't free it, bearing puller and replacement is needed.",
-            required_tools=["Light Machine Oil (WD-40 / SAE 10W)", "Clean rag", "Screwdriver set"],
-            estimated_cost="₹30 (oil) to ₹250 (new bearings)",
-            estimated_time="30 - 45 minutes",
-            safety_warnings=[
-                "Disconnect electrical supply completely before working on the fan.",
-                "Do not spray conductive aerosols inside the electric motor stator or wiring."
-            ],
-            troubleshooting_steps=[
-                "1. Turn OFF power at the mains.",
-                "2. Try rotating the fan blades manually by hand.",
-                "3. If there is noticeable stiffness, grinding noise, or heavy resistance, the bearings are dry or seized.",
-                "4. For table/pedestal fans: Apply 3-4 drops of sewing machine oil or synthetic motor oil to the rotor shaft bushings.",
-                "5. Rotate by hand until motion frees up.",
-                "6. For ceiling fans: Sealed ball bearings (6201/6202) may need replacement if grinding continues."
-            ],
-            positive_keywords=["stiff", "jammed", "hard to rotate", "resistance", "grinding", "squeak", "squeaking", "friction", "wont turn by hand", "noise", "rubbing"],
-            negative_keywords=["loose", "wobble", "remote"],
-            common_symptoms=[
-                "Blades are stiff and hard to turn even by hand",
-                "Loud squeaking, screeching, or grinding noise during rotation",
-                "Motor gets hot quickly after a few minutes of trying to turn"
-            ],
-            co_occurrence_patterns=[
-                ["stiff", "hand"],
-                ["grinding", "noise"],
-                ["squeak", "rotate"],
-                ["jammed", "shaft"]
-            ]
-        ),
-        FaultRule(
-            fault_id="FAN_BURNT_STATOR_WINDING",
-            title="Motor Stator Winding Burn / Short Circuit",
-            severity="HIGH",
-            complexity="High (Advanced)",
-            recommendation="SERVICE (Professional) / REPLACE (New Motor)",
-            rationale="Rewinding burnt copper stator coils requires specialized coil winding machinery, or full motor replacement.",
-            required_tools=["Multimeter (Resistance/Continuity)", "Screwdrivers"],
-            estimated_cost="₹350 - ₹600 (Rewinding) or ₹1,200 - ₹2,000 (New fan)",
-            estimated_time="1 - 2 business days (Service Center)",
-            safety_warnings=[
-                "FIRE & SHOCK HAZARD: Do not leave a fan running if it emits burning smells or smoke.",
-                "Burnt insulation can lead to short circuits and shock on the fan outer metal chassis."
-            ],
-            troubleshooting_steps=[
-                "1. Immediately turn OFF power at the wall switch and circuit breaker.",
-                "2. Disconnect fan from power supply.",
-                "3. Smell around the motor housing for acrid burnt lacquer/copper odor.",
-                "4. Measure continuity across the running and starting coils using a digital multimeter (Ohms mode).",
-                "5. An open loop (infinite resistance) or direct chassis continuity indicates a burnt or shorted winding.",
-                "6. Send stator to an electric motor rewinding specialist or replace the motor."
-            ],
-            positive_keywords=["smoke", "smell", "burning", "burnt", "spark", "black smoke", "acrid", "burnt copper", "shock"],
-            negative_keywords=["wobble", "remote"],
-            common_symptoms=[
-                "Strong burnt plastic or burnt copper smell coming from motor housing",
-                "Visible smoke or discoloration",
-                "Fan completely dead with zero hum and zero movement"
-            ],
-            co_occurrence_patterns=[
-                ["burning", "smell"],
-                ["smoke", "motor"],
-                ["burnt", "dead"]
-            ]
-        ),
-        FaultRule(
-            fault_id="FAN_BLADE_IMBALANCE_WOBBLE",
-            title="Blade Misalignment or Loose Canopy Screws",
-            severity="LOW",
-            complexity="Low (Beginner)",
-            recommendation="REPAIR (DIY)",
-            rationale="Tightening blade holder screws or balancing blade weights takes 10 minutes with zero parts cost.",
-            required_tools=["Cross-head / Phillips Screwdriver", "Ruler / Measuring Tape", "Fan Balancing Clip or Coin + Tape"],
-            estimated_cost="₹0 ($0)",
-            estimated_time="10 - 15 minutes",
-            safety_warnings=[
-                "Ensure fan is completely stopped and switched off before touching the blades.",
-                "Inspect the downrod suspension pin and safety wire to prevent falling hazard."
-            ],
-            troubleshooting_steps=[
-                "1. Switch OFF the fan and wait for it to come to a complete stop.",
-                "2. Inspect each blade screw where it attaches to the motor housing. Tighten any loose screws firmly.",
-                "3. Measure the vertical distance from the ceiling to the tip of each blade using a ruler.",
-                "4. If one blade is higher or lower, gently flex the blade bracket (not the blade itself) until all tips match within 1/8 inch.",
-                "5. Test the fan on medium speed to verify stability."
-            ],
-            positive_keywords=["wobble", "wobbly", "shaking", "vibrate", "vibrating", "rattling", "loose", "rattle", "screws", "swinging"],
-            negative_keywords=["smoke", "burn"],
-            common_symptoms=[
-                "Fan wobbles or shakes vigorously while running",
-                "Rattling or clicking noise from loose downrod or screws",
-                "Blades visibly misaligned or bent"
-            ],
-            co_occurrence_patterns=[
-                ["wobble", "speed"],
-                ["shake", "noise"],
-                ["rattle", "screws"]
-            ]
-        )
-    ],
-
-    # =======================================================================
-    # 2. LAPTOP / NOTEBOOK
-    # =======================================================================
-    "laptop": [
-        FaultRule(
-            fault_id="LAPTOP_DEAD_BATTERY_CHARGER",
-            title="Faulty Power Adapter / Dead Battery / DC Jack Failure",
-            severity="MEDIUM",
-            complexity="Low (Beginner)",
-            recommendation="REPAIR (DIY / Replace Adapter)",
-            rationale="Replacing an AC adapter or external/modular battery requires no internal teardown.",
-            required_tools=["Compatible OEM Charger", "Voltmeter / Multimeter", "USB-C Power Delivery tester (if USB-C)"],
-            estimated_cost="₹800 - ₹2,500 ($10 - $30)",
-            estimated_time="10 minutes",
-            safety_warnings=[
-                "Never use generic unbranded cheap chargers; they can cause voltage spikes and battery thermal runaway.",
-                "If battery is physically swollen (lifting trackpad/chassis), cease charging immediately. High fire risk."
-            ],
-            troubleshooting_steps=[
-                "1. Perform a hard EC (Embedded Controller) reset: Unplug charger, hold power button down for 30 full seconds, then release.",
-                "2. Inspect the charger cable for kinks, fraying, or loose pins in the charging barrel/USB-C connector.",
-                "3. Try plugging into a different confirmed working wall socket without an extension strip.",
-                "4. Check if the LED charging indicator illuminates when the charger is connected.",
-                "5. If LED lights up but laptop won't turn on, test with a known good compatible charger."
-            ],
-            positive_keywords=["won't turn on", "wont turn on", "not turning on", "dead", "no power", "not charging", "charger", "plugged in not charging", "battery", "dies", "dc jack"],
-            negative_keywords=["blue screen", "spill", "hinge"],
-            common_symptoms=[
-                "Laptop completely dead, no lights or fan activity when pressing power button",
-                "Battery does not charge when plugged in, or drops to 0% immediately when unplugged",
-                "Charging only works when wiggling the charger cable at a specific angle"
-            ],
-            co_occurrence_patterns=[
-                ["not charging", "battery"],
-                ["wont turn on", "charger"],
-                ["dead", "plugged in"],
-                ["power", "light"]
-            ]
-        ),
-        FaultRule(
-            fault_id="LAPTOP_OVERHEATING_DUST_THERMAL",
-            title="Thermal Throttling / Clogged Fan / Dried Thermal Paste",
-            severity="MEDIUM",
-            complexity="Medium (Intermediate)",
-            recommendation="REPAIR (DIY) / SERVICE (Professional)",
-            rationale="Cleaning heatsink fins with compressed air and repasting thermal compound restores normal temps and performance.",
-            required_tools=["Precision Screwdriver Set (PH00/T5)", "Compressed Air Can", "High-performance Thermal Paste (Arctic MX-4/Noctua)", "Isopropyl Alcohol (99%)"],
-            estimated_cost="₹300 - ₹600 ($4 - $8)",
-            estimated_time="30 - 45 minutes",
-            safety_warnings=[
-                "Always unplug the battery cable from the motherboard before touching the heatsink or fans.",
-                "Use an anti-static wrist strap or touch a grounded metal object to prevent ESD damage."
-            ],
-            troubleshooting_steps=[
-                "1. Check if the fan is spinning loudly even when idle or browsing simple websites.",
-                "2. Feel the exhaust vents: if the fan is screaming but little air is coming out, the heatsink grill is clogged with dust.",
-                "3. Power off, open the bottom panel with precision screwdrivers.",
-                "4. Unplug the battery connector from the motherboard.",
-                "5. Hold the fan blades gently (do not let them over-spin) and blow dust out with compressed air.",
-                "6. If laptop is older than 2 years, unscrew heatsink, clean old crusty paste with 99% alcohol, apply a pea-sized dot of new paste, and remount."
-            ],
-            positive_keywords=["overheat", "overheating", "hot", "very hot", "fan loud", "fan noise", "shuts down randomly", "thermal throttling", "lagging", "high temp", "thermal paste"],
-            negative_keywords=["liquid", "spill", "water", "cracked"],
-            common_symptoms=[
-                "Laptop gets extremely hot underneath, especially near the exhaust vent",
-                "Cooling fan runs at maximum 100% speed continuously",
-                "Laptop suddenly shuts down or restarts under heavy load (thermal protection)"
-            ],
-            co_occurrence_patterns=[
-                ["hot", "fan"],
-                ["overheating", "shuts down"],
-                ["loud", "fan"],
-                ["thermal", "throttling"]
-            ]
-        ),
-        FaultRule(
-            fault_id="LAPTOP_DISPLAY_RAM_ISSUE",
-            title="Black Screen / RAM Contact Oxidation / Loose Display Ribbon Cable",
-            severity="MEDIUM",
-            complexity="Medium (Intermediate)",
-            recommendation="REPAIR (DIY)",
-            rationale="Reseating RAM sticks with an eraser or reconnecting the eDP display cable fixes 80% of 'power on with black screen' problems.",
-            required_tools=["Precision Phillips/Torx screwdriver", "Pencil Eraser", "Microfiber cloth"],
-            estimated_cost="₹0 ($0)",
-            estimated_time="20 - 30 minutes",
-            safety_warnings=[
-                "Disconnect the battery before touching RAM slots or the display eDP cable. Shorting display pins can burn the motherboard backlight fuse!"
-            ],
-            troubleshooting_steps=[
-                "1. Connect the laptop to an external TV or monitor via HDMI.",
-                "2. If external monitor displays the desktop normally, the laptop motherboard/GPU is fine; the issue is the internal screen panel, eDP cable, or backlight fuse.",
-                "3. If external monitor also stays black while power LEDs and fans turn on, RAM contact oxidation is the most common cause.",
-                "4. Open bottom chassis, disconnect battery, unclip RAM modules.",
-                "5. Rub the golden contact pins on both sides of the RAM stick with a clean pencil eraser to remove microscopic oxidation.",
-                "6. Reinsert RAM firmly into the slots at a 30-degree angle and click down. Reconnect battery and power on."
-            ],
-            positive_keywords=["black screen", "blank screen", "no display", "screen dark", "keyboard lights up no display", "caps lock blinking", "ram", "display cable", "external monitor"],
-            negative_keywords=["spill", "water", "hinge"],
-            common_symptoms=[
-                "Power LED and fan turn on, but the screen stays pitch black with no logo",
-                "Caps Lock light blinks in a rhythmic code (e.g. 3 slow, 2 fast)",
-                "Display only flickers or shows lines when moving the screen hinge"
-            ],
-            co_occurrence_patterns=[
-                ["black screen", "power"],
-                ["blank", "lights"],
-                ["no display", "fan"],
-                ["caps lock", "blink"]
-            ]
-        ),
-        FaultRule(
-            fault_id="LAPTOP_LIQUID_SPILL",
-            title="Liquid Ingress / Liquid Corrosion Hazard",
-            severity="CRITICAL",
-            complexity="Dangerous (Do Not DIY)",
-            recommendation="SERVICE (Professional Ultrasonic Cleaning)",
-            rationale="Liquid causes galvanic corrosion and micro-shorts under surface-mount BGAs. Requires immediate professional ultrasonic cleaning and board drying.",
-            required_tools=["Torx/Phillips screwdrivers", "99% Isopropyl alcohol", "Ultrasonic cleaner (Lab)"],
-            estimated_cost="₹1,500 - ₹5,000 ($20 - $60)",
-            estimated_time="1 - 3 business days",
-            safety_warnings=[
-                "CRITICAL: DO NOT TURN ON THE LAPTOP. DO NOT PLUG IN THE CHARGER.",
-                "Leaving power on with liquid present causes instant electrolysis that permanently eats through copper motherboard traces."
-            ],
-            troubleshooting_steps=[
-                "1. IMMEDIATELY disconnect the AC charger.",
-                "2. Force power OFF by holding the power button for 10 seconds.",
-                "3. Place laptop in an inverted 'tent' (V-shape) on a towel so liquid drains away from the motherboard.",
-                "4. DO NOT use a hairdryer (blows liquid deeper under chips and melts plastic keys).",
-                "5. DO NOT use rice (starch dust clogs ports and accelerates corrosion).",
-                "6. Bring to a board-level repair technician immediately for battery disconnection and ultrasonic alcohol bathing."
-            ],
-            positive_keywords=["spill", "liquid", "water", "coffee", "tea", "juice", "wet", "poured", "dropped in water"],
-            negative_keywords=[],
-            common_symptoms=[
-                "Liquid was spilled onto keyboard or ports",
-                "Laptop turned off immediately after liquid contact",
-                "Keys sticking or sizzling sound"
-            ],
-            co_occurrence_patterns=[
-                ["water", "spill"],
-                ["coffee", "keyboard"],
-                ["liquid", "wet"]
-            ]
-        ),
-        FaultRule(
-            fault_id="LAPTOP_PHYSICAL_SCREEN_DAMAGE",
-            title="Cracked LCD / OLED Display Panel (Physical Impact)",
-            severity="MEDIUM",
-            complexity="Medium (Intermediate)",
-            recommendation="REPLACE (Display Panel Assembly)",
-            rationale="Cracked glass or severed liquid crystal matrix cannot be repaired with software or soldering; it requires replacing the internal display panel.",
-            required_tools=["Plastic Spudger / Prying Tool", "Precision Screwdriver PH00", "Replacement OEM Screen Panel"],
-            estimated_cost="₹2,500 - ₹6,000 ($30 - $75)",
-            estimated_time="30 - 45 minutes",
-            safety_warnings=[
-                "Disconnect the battery and AC charger before disconnecting the eDP display cable to avoid blowing the motherboard backlight fuse."
-            ],
-            troubleshooting_steps=[
-                "1. Connect laptop to an external monitor via HDMI to verify that GPU and motherboard boot successfully.",
-                "2. If external monitor displays the OS, the core system is healthy and only the screen panel requires replacement.",
-                "3. Remove bezel frame using a plastic spudger.",
-                "4. Unscrew LCD panel mounting brackets and find the panel part number sticker on the back (e.g. NV156FHM-N48).",
-                "5. Unclip 30-pin or 40-pin eDP video connector.",
-                "6. Install the replacement panel, reconnect eDP cable, test before snapping bezel back."
-            ],
-            positive_keywords=["screen crack", "crack", "cracked", "broken screen", "shattered", "ink bleed", "black spots", "lines on screen"],
-            negative_keywords=[],
-            common_symptoms=[
-                "Visible crack, hairline fracture, or spiderweb pattern on the display glass",
-                "Ink-bleed blotches or black circular voids on the screen",
-                "Vertical or horizontal colored lines with fractured glass"
-            ],
-            co_occurrence_patterns=[
-                ["screen", "crack"],
-                ["broken", "display"]
-            ]
-        )
-    ],
-
-    # =======================================================================
-    # 3. BULB / LIGHTING (LED, CFL, Incandescent)
-    # =======================================================================
-    "bulb": [
-        FaultRule(
-            fault_id="BULB_FAILED_LED_DRIVER",
-            title="Failed LED Driver Electrolytic Capacitor / Burnt SMD LED Bead",
-            severity="LOW",
-            complexity="Low (Beginner)",
-            recommendation="REPLACE (New Bulb) / REPAIR (DIY Soldering for enthusiasts)",
-            rationale="Modern LED bulbs cost ₹70-₹150 ($1-$2). Replacing the bulb is the most economical and reliable action, though shorting a burnt LED diode or replacing the 400V capacitor is a fun 10-minute DIY project.",
-            required_tools=["Soldering Iron & Solder", "Small Flathead Screwdriver", "Wire cutter", "Replacement LED Bulb"],
-            estimated_cost="₹70 - ₹150 (Replacement) or ₹10 (DIY Solder)",
-            estimated_time="5 minutes (Replace) or 20 minutes (DIY Solder)",
-            safety_warnings=[
-                "Burn hazard: Turn off the light switch and wait 5 minutes for the glass/heatsink to cool.",
-                "Never open an LED bulb while it is connected to a live lamp socket."
-            ],
-            troubleshooting_steps=[
-                "1. Turn OFF the light switch.",
-                "2. Allow bulb to cool down, then unscrew it from the socket.",
-                "3. Test the socket by plugging in a known working bulb to confirm power delivery.",
-                "4. If socket is working, the bulb's internal driver or diode board has failed.",
-                "5. Optional DIY Repair: Pop off the plastic diffuser globe with a dull knife.",
-                "6. Look closely at the yellow LED phosphor squares. If one has a small black dot, that LED burned open.",
-                "7. Scrape off the burnt LED and bridge the two solder pads with a tiny blob of solder to complete the series circuit.",
-                "8. Snap diffuser back on and test."
-            ],
-            positive_keywords=["flicker", "flickering", "strobe", "blinking", "not turning on", "dead", "dim", "buzz", "burnt dot", "led", "filament", "burned out"],
-            negative_keywords=["switchboard", "breaker"],
-            common_symptoms=[
-                "Bulb flickers rapidly like a strobe light",
-                "Bulb glows extremely dim or only emits a faint orange glimmer",
-                "Bulb doesn't turn on at all despite socket having power"
-            ],
-            co_occurrence_patterns=[
-                ["flicker", "dim"],
-                ["flicker", "blinking"],
-                ["not turning on", "socket"],
-                ["buzzing", "bulb"]
-            ]
-        ),
-        FaultRule(
-            fault_id="BULB_LOOSE_SOCKET_CONTACT",
-            title="Oxidized or Depressed Socket Brass Contact Tang",
-            severity="LOW",
-            complexity="Low (Beginner)",
-            recommendation="REPAIR (DIY)",
-            rationale="The brass contact tongue in the center of the holder gets bent downwards over time, failing to touch the bulb bottom contact.",
-            required_tools=["Insulated Flathead Screwdriver or Tweezers", "Dry Cloth"],
-            estimated_cost="₹0 ($0)",
-            estimated_time="5 minutes",
-            safety_warnings=[
-                "DANGER: TURN OFF THE MAIN ELECTRICAL SWITCH / CIRCUIT BREAKER before touching the inside of a light bulb socket. The center contact is connected directly to 230V/120V Live!"
-            ],
-            troubleshooting_steps=[
-                "1. TURN OFF the wall switch AND the circuit breaker controlling that room.",
-                "2. Unscrew the light bulb.",
-                "3. Look inside the socket holder. Note the center brass/copper spring tab.",
-                "4. If the tab is flattened flush against the bottom, use an insulated screwdriver to gently pry it upwards by 2-3 mm.",
-                "5. Wipe any dust or carbon black residue off the contact using a dry cloth.",
-                "6. Screw the bulb back in firmly, restore power at the breaker, and turn on the switch."
-            ],
-            positive_keywords=["loose", "wiggle", "contact", "socket", "works intermittently", "only when twisted", "spark when screwing in", "holder"],
-            negative_keywords=["flickering driver"],
-            common_symptoms=[
-                "Bulb only works when pressed or turned in a specific direction",
-                "New bulb also does not work in this specific socket",
-                "Sparking or crackling sound inside the socket holder"
-            ],
-            co_occurrence_patterns=[
-                ["socket", "contact"],
-                ["wiggle", "light"],
-                ["twisted", "holder"]
-            ]
-        )
-    ],
-
-    # =======================================================================
-    # 4. SWITCHBOARD / SOCKET / DISTRIBUTION BOX
-    # =======================================================================
-    "switchboard": [
-        FaultRule(
-            fault_id="SWITCH_BURNT_CONTACT_ARCING",
-            title="Carbonized Switch Rocker Contacts / Terminal Arcing",
-            severity="HIGH",
-            complexity="Medium (Intermediate)",
-            recommendation="REPAIR (DIY Switch Replacement) / SERVICE (Electrician)",
-            rationale="Repeated electrical arcing erodes copper switch contacts, creating carbon buildup that increases contact resistance and generates intense heat.",
-            required_tools=["Neon Phase Tester / Multimeter", "Insulated Screwdriver (+ & -)", "Replacement Modular Switch (6A/16A)", "Wire Stripper"],
-            estimated_cost="₹30 - ₹120 ($0.50 - $1.50) per switch",
-            estimated_time="15 - 25 minutes",
-            safety_warnings=[
-                "HIGH RISK ELECTRICAL HAZARD: Turn off the main MCB (Miniature Circuit Breaker) at the main distribution panel before opening the switchboard plate.",
-                "Always verify zero voltage with a calibrated neon tester or digital voltmeter before touching any exposed terminal screws."
-            ],
-            troubleshooting_steps=[
-                "1. Turn OFF the main branch MCB controlling this switchboard.",
-                "2. Test a nearby confirmed live socket with your phase tester, then test the target board to ensure power is genuinely DEAD.",
-                "3. Carefully pry off the front decorative switch plate cover.",
-                "4. Unscrew the two mounting screws holding the modular frame to the wall box.",
-                "5. Pull the board gently forward without pulling on wires.",
-                "6. Inspect the switch behind: look for black soot, melted plastic casing, or loose terminal screws.",
-                "7. Loosen the terminal screws, remove the old switch, and snap the new OEM replacement modular switch into the grid.",
-                "8. Strip fresh copper (5mm), insert firmly into terminals, and tighten screws solidly to prevent future loose-connection arcing.",
-                "9. Push board back, secure wall screws, and restore MCB power."
-            ],
-            positive_keywords=["spark", "sparking", "crackling", "buzzing", "burning smell", "black mark", "scorch", "hot switch", "melted", "arcing", "burnt plastic"],
-            negative_keywords=[],
-            common_symptoms=[
-                "Visible blue/yellow spark when flipping the switch ON or OFF",
-                "Crackling or sizzling sound behind the switchboard",
-                "Switch plate feels warm or hot to the touch",
-                "Black soot or scorch marks visible around the switch toggle"
-            ],
-            co_occurrence_patterns=[
-                ["spark", "switch"],
-                ["burning", "switchboard"],
-                ["crackling", "switch"],
-                ["melted", "socket"]
-            ]
-        ),
-        FaultRule(
-            fault_id="SOCKET_LOOSE_EARTH_OR_NEUTRAL",
-            title="Loose Neutral Terminal / Missing Safety Earth Ground",
-            severity="HIGH",
-            complexity="Medium (Intermediate)",
-            recommendation="REPAIR (DIY) / SERVICE (Licensed Electrician)",
-            rationale="Appliances give mild static tingling shocks when safety ground (Earth) is disconnected, or fail to power on when Neutral wire is loose.",
-            required_tools=["3-Pin Socket Tester (Receptacle tester)", "Insulated Screwdriver", "Phase tester"],
-            estimated_cost="₹0 (Tightening) or ₹80 (New socket)",
-            estimated_time="15 minutes",
-            safety_warnings=[
-                "SHOCK HAZARD: Tingling sensation from metal appliances (refrigerators, PC cabinets, metal kettles) indicates dangerous leakage current without Earth protection.",
-                "Turn off main circuit breaker before opening."
-            ],
-            troubleshooting_steps=[
-                "1. Plug a 3-pin socket tester into the faulty socket to immediately diagnose Open Neutral, Open Earth, or Reverse Polarity.",
-                "2. Turn OFF main MCB.",
-                "3. Open the switchboard faceplate.",
-                "4. Inspect the top large pin of the 3-pin socket (Earth terminal, usually Green wire): ensure screw is fully tightened.",
-                "5. Inspect the Left terminal (Neutral, usually Black or Blue): ensure the copper wire has not snapped or slipped out.",
-                "6. Re-tighten all terminal block screws firmly.",
-                "7. Fasten board back to wall, restore power, and re-test."
-            ],
-            positive_keywords=["shock", "tingle", "tingling", "earth", "neutral", "socket not working", "plug loose", "charger falls out", "spark when plug", "tester shows open earth"],
-            negative_keywords=["fan wobble"],
-            common_symptoms=[
-                "Mild shock or vibration feeling when touching metal laptop casing or appliance body",
-                "Socket does not provide power even when switch is toggled ON",
-                "Plugs fit loosely and wobble inside the pin sockets"
-            ],
-            co_occurrence_patterns=[
-                ["shock", "socket"],
-                ["plug", "loose"],
-                ["earth", "tingle"],
-                ["socket", "not working"]
-            ]
-        ),
-        FaultRule(
-            fault_id="CIRCUIT_BREAKER_TRIP_SHORT",
-            title="Short Circuit / Overload Tripping MCB / RCCB",
-            severity="CRITICAL",
-            complexity="Medium (Intermediate)",
-            recommendation="SERVICE (Electrician) / REPAIR (Isolate faulty appliance)",
-            rationale="An instant trip occurs when Live directly touches Neutral or Earth, or when high-power heating elements exceed the rated breaker amperage.",
-            required_tools=["Multimeter", "Flashlight"],
-            estimated_cost="₹0 (Isolation) or ₹250 (New MCB)",
-            estimated_time="15 - 30 minutes",
-            safety_warnings=[
-                "NEVER hold an MCB toggle in the UP position by force or tape it. It trips to protect your house from catastrophic electrical fires."
-            ],
-            troubleshooting_steps=[
-                "1. Identify if the trip is an MCB (Overcurrent/Short Circuit) or an RCCB/ELCB (Earth Leakage).",
-                "2. Unplug EVERY device and appliance currently connected to that specific room/circuit.",
-                "3. Reset the breaker toggle switch to ON. If it trips immediately with zero appliances plugged in, the fault is inside the wall wiring or switchboard.",
-                "4. If the breaker stays ON, plug appliances back in ONE BY ONE until the breaker trips. The last appliance plugged in has an internal dead short!"
-            ],
-            positive_keywords=["trips", "mcb", "circuit breaker", "tripping", "short circuit", "power cut", "sparks and trips", "rccb", "fuse blown"],
-            negative_keywords=[],
-            common_symptoms=[
-                "Breaker immediately trips with a loud click as soon as device is turned on",
-                "Entire room loses power instantly upon plugging in an appliance",
-                "Breaker cannot be flipped back up; immediately snaps down"
-            ],
-            co_occurrence_patterns=[
-                ["trip", "mcb"],
-                ["short", "circuit"],
-                ["breaker", "plugged"],
-                ["fuse", "blown"]
-            ]
-        )
-    ],
-
-    # =======================================================================
-    # 5. MOUSE / POINTING DEVICE (Wired / Wireless / Bluetooth)
-    # =======================================================================
-    "mouse": [
-        FaultRule(
-            fault_id="MOUSE_DOUBLE_CLICK_MICROSWITCH",
-            title="Worn-Out Left/Right Button Microswitch (Double-Click on Single Click)",
-            severity="MEDIUM",
-            complexity="Medium (Intermediate)",
-            recommendation="REPAIR (DIY Solder) / REPLACE (New Mouse)",
-            rationale="The tactile microswitch inside the mouse button loses its spring-return force after ~1-3 million actuations, causing a ghost secondary click on every physical press.",
-            required_tools=["Soldering Iron", "Desoldering Pump or Braid", "Replacement OMRON D2FC-F-7N Microswitch", "Small Phillips Screwdriver"],
-            estimated_cost="\u20b930 - \u20b9120 (Microswitch) or \u20b9400 (New basic mouse)",
-            estimated_time="20 - 40 minutes",
-            safety_warnings=[
-                "Unplug the mouse (or remove batteries for wireless) before opening.",
-                "Identify the exact PCB microswitch model number before ordering: D2FC-F-7N (10M) for Omron, or TTC Gold for smoother feel."
-            ],
-            troubleshooting_steps=[
-                "1. Verify the fault: Open any text editor and single-click; if text gets selected (double-click highlight), the microswitch is the culprit.",
-                "2. Go to Mouse Settings -> Test mouse buttons to confirm the ghosting.",
-                "3. Remove the mouse feet (adhesive pads on the bottom) to find hidden screws.",
-                "4. Pry open the mouse shell gently with a spudger.",
-                "5. Locate the two front microswitches on the PCB.",
-                "6. Heat the two solder pads of the faulty switch from the PCB underside and remove the old switch.",
-                "7. Solder in the new OMRON D2FC-F-7N microswitch and reassemble.",
-                "8. Test clicking in the OS mouse button diagnostics tool."
-            ],
-            positive_keywords=["double click", "double clicking", "double-click", "single click selects", "drag and drop fails", "misclick", "unintended double", "clicking twice", "ghost click", "self clicking"],
-            negative_keywords=["scroll", "sensor", "cursor"],
-            common_symptoms=[
-                "Single physical click registers as two rapid clicks",
-                "Drag-and-drop randomly releases mid-drag",
-                "Files/folders open on single click instead of requiring a double-click"
-            ],
-            co_occurrence_patterns=[
-                ["double", "click"],
-                ["single", "select"],
-                ["drag", "drop"],
-                ["ghost", "click"]
-            ]
-        ),
-        FaultRule(
-            fault_id="MOUSE_SENSOR_STUTTER",
-            title="Optical/Laser Sensor Contamination or Surface Incompatibility",
-            severity="LOW",
-            complexity="Low (Beginner)",
-            recommendation="REPAIR (DIY Clean)",
-            rationale="Dust, lint, or oil accumulation on the sensor lens causes erratic cursor jumps. A simple clean restores perfect tracking.",
-            required_tools=["Compressed Air Can", "Cotton Swab", "99% Isopropyl Alcohol", "Lint-Free Cloth"],
-            estimated_cost="\u20b90 ($0)",
-            estimated_time="5 minutes",
-            safety_warnings=[
-                "Do not use excessive liquid on the sensor; one lightly-dampened cotton swab is sufficient.",
-                "Use an appropriate mouse pad (solid non-reflective surface). Glass and mirror surfaces confuse laser sensors."
-            ],
-            troubleshooting_steps=[
-                "1. Lift the mouse and observe the sensor LED glow. If it flickers or is dim, dust is blocking the lens.",
-                "2. Blow one short burst of compressed air directly into the sensor opening.",
-                "3. Lightly dab a cotton swab in isopropyl alcohol and gently wipe the sensor lens in a circular motion.",
-                "4. Allow 30 seconds for alcohol to evaporate.",
-                "5. Test on a high-contrast mouse pad (light gray or cloth recommended).",
-                "6. If cursor still stutters on any surface, the sensor ASIC may be internally damaged."
-            ],
-            positive_keywords=["cursor jumping", "jumping cursor", "stuttering", "stutter", "freezing cursor", "cursor freeze", "sensor", "erratic movement", "random cursor", "drift", "glitching cursor", "tracking issue"],
-            negative_keywords=["click", "scroll", "battery"],
-            common_symptoms=[
-                "Cursor jumps or teleports randomly while moving the mouse",
-                "Cursor freezes momentarily then catches up",
-                "Mouse works fine on cloth pad but stutters on hard desk surface"
-            ],
-            co_occurrence_patterns=[
-                ["cursor", "jump"],
-                ["stutter", "move"],
-                ["freeze", "cursor"],
-                ["erratic", "movement"]
-            ]
-        ),
-        FaultRule(
-            fault_id="MOUSE_SCROLL_WHEEL_SKIP",
-            title="Dirty or Worn Scroll Wheel Encoder",
-            severity="LOW",
-            complexity="Low (Beginner)",
-            recommendation="REPAIR (DIY Clean or Encoder Swap)",
-            rationale="Rotary encoder inside the scroll wheel accumulates dust and graphite causing it to skip steps or scroll in reverse. A cleaning or \u20b920 encoder swap fixes it.",
-            required_tools=["Compressed Air Can", "Cotton Swab", "99% Isopropyl Alcohol", "Screwdriver (for encoder swap)"],
-            estimated_cost="\u20b90 (clean) or \u20b920 - \u20b960 (new encoder)",
-            estimated_time="10 - 20 minutes",
-            safety_warnings=[
-                "Disconnect the mouse before opening the shell.",
-                "Do not spin the scroll wheel at high speed with the encoder exposed; the encoder teeth are delicate."
-            ],
-            troubleshooting_steps=[
-                "1. Confirm the fault: open a long webpage and scroll slowly. If it jumps multiple lines per notch or scrolls backward, the encoder is failing.",
-                "2. Spray a short burst of compressed air around the scroll wheel gap from both sides.",
-                "3. If available, apply a tiny drop of electronics contact cleaner (Deoxit D5) around the encoder shaft.",
-                "4. Scroll the wheel rapidly 20-30 times to distribute the cleaner inside the encoder.",
-                "5. Wait 5 minutes and test. If skipping continues, open the mouse shell.",
-                "6. Desolder the rotary encoder (3 or 5 pin) and replace with an identical part."
-            ],
-            positive_keywords=["scroll", "scrolling", "scroll skips", "scroll jumps", "scroll backwards", "reverse scroll", "scroll not smooth", "wheel skip", "wheel jump", "encoder"],
-            negative_keywords=["click", "cursor", "sensor"],
-            common_symptoms=[
-                "Scroll wheel skips or jumps multiple lines per single notch click",
-                "Page scrolls in the opposite direction unexpectedly",
-                "Scroll wheel feels gritty, resistant, or produces scratchy sound while rolling"
-            ],
-            co_occurrence_patterns=[
-                ["scroll", "skip"],
-                ["scroll", "backwards"],
-                ["wheel", "jump"],
-                ["scroll", "rough"]
-            ]
-        )
-    ]
+    "laptop": LAPTOP_RULES
 }
 
 
-# ---------------------------------------------------------------------------
+# ===========================================================================
+# SHARED SAFETY & HAZARD EVALUATION
+# ===========================================================================
+
+HAZARD_KEYWORDS = [
+    "smoke",
+    "spark",
+    "burning smell",
+    "burnt smell",
+    "shock",
+    "swollen",
+    "bulging",
+    "liquid",
+    "spill",
+    "water",
+    "wet",
+    "hot to touch",
+]
+
+STOP_USING_ADVICE = [
+    "CRITICAL SAFETY WARNING: Stop using the device immediately.",
+    "Do NOT power on, plug in, or charge the device.",
+    "Do NOT attempt to open the casing or tamper with internal components (high risk of fire, electric shock, or chemical hazard).",
+    "Disconnect from the wall outlet only if the plug and cord are completely cool and safe to touch.",
+    "Take the device to a certified professional technician or authorized service center."
+]
+
+STOP_USING_TROUBLESHOOTING_STEPS = [
+    "1. Immediately stop using the device and do not press the power button.",
+    "2. If safely accessible without touching hot, wet, or sparking areas, unplug the charger from the wall socket.",
+    "3. Do NOT open the laptop casing, touch internal circuit boards, or attempt DIY teardown.",
+    "4. Place the device in a well-ventilated, non-flammable area away from liquids and combustible items.",
+    "5. Contact a qualified hardware repair professional or authorized manufacturer service center."
+]
+
+GENERAL_UNSUPPORTED_SAFETY_ADVICE = [
+    "1. Disconnect the device from mains electrical power and unplug all chargers or batteries before handling.",
+    "2. Never open sealed power supplies, high-voltage sections, or swollen battery packs.",
+    "3. If you notice smoke, sparks, burning smells, or liquid exposure, cease using the device immediately and consult a certified repair professional."
+]
+
+
+def evaluate_safety(
+    answers: Optional[Dict[str, Any]] = None,
+    free_text: Optional[str] = None,
+    existing_safety_alert: bool = False,
+    existing_requires_pro: bool = False,
+) -> Dict[str, Any]:
+    """
+    Shared safety evaluation for rule-based, questionnaire, and LLM diagnostic paths.
+    - Scans real questionnaire keys.
+    - Scans free-text description for confirmed hazard words using word stems.
+    - 'Not sure' is treated as caution/uncertainty, never a confirmed hazard.
+    - Never lowers an existing flag (monotonic safety).
+    - Returns structured safety assessment with instructions and reasons.
+    """
+    answers = answers or {}
+    safety_reasons = []
+    hazard_detected = False
+    caution_notes = []
+
+    # 1. Real questionnaire keys evaluation
+    hazards_val = str(answers.get("hazards", "")).strip().lower()
+    if hazards_val == "yes":
+        hazard_detected = True
+        safety_reasons.append("User confirmed active hazard (smoke, sparks, burning smell, shock, or swollen battery).")
+    elif hazards_val == "not sure":
+        caution_notes.append("User was unsure about physical hazards; exercising elevated caution.")
+
+    event_val = str(answers.get("recent_event", "")).strip().lower()
+    if "liquid spill" in event_val or "liquid" in event_val or "spill" in event_val:
+        hazard_detected = True
+        safety_reasons.append("Recent event reported: Liquid spill (causes electrolytic short circuits and board corrosion).")
+    elif "power surge" in event_val:
+        hazard_detected = True
+        safety_reasons.append("Recent event reported: Power surge / electrical event (potential capacitor/VRM destruction).")
+    elif event_val == "unknown":
+        caution_notes.append("Preceding event is unknown.")
+
+    charging_val = str(answers.get("charging", "")).strip().lower()
+    if "swollen" in charging_val or "bulging" in charging_val:
+        hazard_detected = True
+        safety_reasons.append("Battery reported as swollen/bulging (severe thermal runaway and fire hazard).")
+
+    cause_val = str(answers.get("possible_cause", "")).strip().lower()
+    if any(k in cause_val for k in ["liquid", "spill", "water", "coffee", "tea"]):
+        hazard_detected = True
+        safety_reasons.append(f"Possible cause noted as liquid exposure: '{answers.get('possible_cause')}'.")
+
+    # 2. Scan all answers values + free_text for hazard keywords
+    text_corpus_parts = []
+    if free_text:
+        text_corpus_parts.append(str(free_text))
+    for k, v in answers.items():
+        if isinstance(v, (str, list, dict)):
+            text_corpus_parts.append(str(v))
+
+    combined_text = " ".join(text_corpus_parts).lower()
+
+    for kw in HAZARD_KEYWORDS:
+        pattern = r"\b" + re.escape(kw) if " " not in kw else re.escape(kw)
+        if re.search(pattern, combined_text):
+            hazard_detected = True
+            safety_reasons.append(f"Free-text symptom description contains confirmed hazard term: '{kw}'.")
+
+    # Monotonic safety rule: NEVER lower a flag
+    safety_alert = existing_safety_alert or hazard_detected
+    requires_pro = existing_requires_pro or hazard_detected
+
+    return {
+        "hazard_detected": hazard_detected,
+        "safety_alert": safety_alert,
+        "requires_professional_attention": requires_pro,
+        "safety_reasons": list(dict.fromkeys(safety_reasons)),
+        "caution_notes": list(dict.fromkeys(caution_notes)),
+        "stop_using_advice": STOP_USING_ADVICE if safety_alert else [],
+        "troubleshooting_override": STOP_USING_TROUBLESHOOTING_STEPS if safety_alert else None,
+        "forced_action": "SERVICE (Professional)" if safety_alert else None,
+        "forced_complexity": "Dangerous (Do Not DIY)" if safety_alert else None,
+    }
+
+
+# ===========================================================================
 # DIAGNOSIS ENGINE LOGIC
-# ---------------------------------------------------------------------------
+# ===========================================================================
 
 class FaultDiagnosisEngine:
     """
@@ -697,22 +656,17 @@ class FaultDiagnosisEngine:
     expert-curated rule bases.
     """
 
-    def __init__(self, knowledge_base: Optional[Dict[str, List[FaultRule]]] = None):
-        self.kb = knowledge_base or KNOWLEDGE_BASE
+    def __init__(self, registry_dict: Optional[Dict[str, List[FaultRule]]] = None):
+        self.registry = registry_dict or DEVICE_REGISTRY
+        self.kb = self.registry
 
     def normalize_device_name(self, raw_device: str) -> str:
         """Map YOLO detections or user labels to canonical device categories."""
-        raw = raw_device.strip().lower()
-        if any(term in raw for term in ["fan", "ceiling fan", "table fan", "exhaust"]):
-            return "fan"
-        if any(term in raw for term in ["laptop", "notebook", "computer", "pc"]):
+        raw = " ".join(str(raw_device).strip().lower().replace("_", " ").split())
+        if raw in DEVICE_ALIASES:
+            return DEVICE_ALIASES[raw]
+        if raw in LAPTOP_COMPONENT_TERMS or any(term in raw for term in LAPTOP_COMPONENT_TERMS):
             return "laptop"
-        if any(term in raw for term in ["bulb", "light", "lamp", "led", "tube"]):
-            return "bulb"
-        if any(term in raw for term in ["switchboard", "switch", "socket", "board", "plug", "mcb"]):
-            return "switchboard"
-        if any(term in raw for term in ["mouse", "pointer", "trackpad", "pointing device"]):
-            return "mouse"
         return raw
 
     def extract_symptom_tokens(self, text: str) -> List[str]:
@@ -721,43 +675,49 @@ class FaultDiagnosisEngine:
         return [word for word in cleaned.split() if len(word) > 2]
 
     def score_rule(self, rule: FaultRule, symptom_text: str, symptom_tokens: List[str]) -> Dict[str, Any]:
-        """Compute match confidence, evidence, and co-occurrence boosts for a rule."""
+        """
+        Compute match confidence, evidence, and co-occurrence boosts for a rule.
+        Enforces strict whole-word / phrase matching.
+        """
         text_lower = symptom_text.lower()
         matched_positive = []
         matched_negative = []
         co_occurrences_found = []
 
-        # 1. Match positive keywords and phrases
+        # 1. Match positive keywords and phrases with whole-word/phrase boundaries
         for kw in rule.positive_keywords:
-            if " " in kw:
-                if kw in text_lower:
-                    matched_positive.append(kw)
-            else:
-                if kw in symptom_tokens or kw in text_lower:
-                    matched_positive.append(kw)
+            kw_clean = kw.strip().lower()
+            pattern = r"\b" + re.escape(kw_clean) + r"\b"
+            if re.search(pattern, text_lower):
+                matched_positive.append(kw_clean)
 
         # 2. Check negative (counter-indicator) keywords
         for neg in rule.negative_keywords:
-            if neg in text_lower:
-                matched_negative.append(neg)
+            neg_clean = neg.strip().lower()
+            pattern = r"\b" + re.escape(neg_clean) + r"\b"
+            if re.search(pattern, text_lower):
+                matched_negative.append(neg_clean)
 
-        # 3. High-confidence co-occurrence patterns
+        # 3. High-confidence co-occurrence patterns (whole-word/phrase matching)
         for pattern in rule.co_occurrence_patterns:
-            if all(term in text_lower for term in pattern):
+            all_matched = True
+            for term in pattern:
+                t_pattern = r"\b" + re.escape(term.strip().lower()) + r"\b"
+                if not re.search(t_pattern, text_lower):
+                    all_matched = False
+                    break
+            if all_matched:
                 co_occurrences_found.append(" + ".join(pattern))
 
         # Base score calculation
         if not matched_positive and not co_occurrences_found:
             return {"score": 0.0, "evidence": [], "matches": []}
 
-        # Calculate weighted confidence
         score = min(0.40, len(matched_positive) * 0.15)
 
-        # Big boost for co-occurring symptom pairs
         if co_occurrences_found:
             score += len(co_occurrences_found) * 0.35
 
-        # Penalty for negative matches
         if matched_negative:
             score -= len(matched_negative) * 0.25
 
@@ -785,19 +745,27 @@ class FaultDiagnosisEngine:
         detection_bbox: Optional[List[float]] = None
     ) -> Dict[str, Any]:
         """
-        Produce a complete structured diagnostic report combining object detection and symptom rules.
+        Produce a complete structured diagnostic report.
+        Unsupported devices return a structured 'unsupported_device' result.
+        If nothing scores > 0, returns 'Inconclusive - professional inspection recommended' (never rules[0]).
         """
         canonical_device = self.normalize_device_name(device)
-        rules = self.kb.get(canonical_device, [])
-
-        if not rules:
+        if canonical_device not in self.registry:
             return {
-                "status": "error",
+                "status": "unsupported_device",
+                "supported": False,
                 "device": device,
-                "message": f"Device category '{device}' is not yet supported in the diagnostic knowledge base. Supported: {list(self.kb.keys())}"
+                "message": f"Device category '{device}' is not supported yet. 'Repair Before Replace' currently provides in-depth diagnosis for Laptops and PCs only.",
+                "safety_advice": GENERAL_UNSUPPORTED_SAFETY_ADVICE,
+                "diagnosis": None,
+                "repair_recommendation": None,
             }
 
+        rules = self.registry.get(canonical_device, [])
         symptom_tokens = self.extract_symptom_tokens(user_symptoms)
+
+        # Evaluate safety on user_symptoms text
+        safety_eval = evaluate_safety(free_text=user_symptoms)
 
         scored_candidates = []
         for rule in rules:
@@ -810,15 +778,39 @@ class FaultDiagnosisEngine:
                     "matches": analysis["matches"]
                 })
 
-        # Sort candidate faults by score descending
         scored_candidates.sort(key=lambda x: x["score"], reverse=True)
 
         if not scored_candidates:
-            # Fallback if no specific keyword matched: suggest baseline diagnostic checks
-            primary_rule = rules[0]
-            confidence_level = 0.35
-            diagnosis_note = "Generic diagnostic check: Symptoms provided did not match a specific single failure mode with high confidence."
-            evidence = ["User-described symptoms were broad or nonspecific. Suggesting primary systematic triage steps."]
+            # (b) Inconclusive primary diagnosis if nothing scores above 0 (never fall back to rules[0])
+            primary_diag = {
+                "fault_id": "INCONCLUSIVE_INSPECTION_RECOMMENDED",
+                "fault_title": "Inconclusive - professional inspection recommended",
+                "confidence_score": 0.15,
+                "severity": "LOW",
+                "repair_complexity": "Unknown",
+                "recommendation": "SERVICE (Professional)",
+                "recommendation_rationale": "The symptoms provided did not match any single known failure mode with sufficient confidence. A hands-on hardware inspection by a technician is recommended.",
+                "estimated_diy_time": "Not applicable",
+                "estimated_parts_cost": "To be quoted after inspection",
+                "required_tools": [],
+                "safety_warnings": ["Do not force power-on if unusual smells, sounds, or excessive heat develop."],
+                "safe_checks": [
+                    "1. Verify that the power adapter is properly plugged into a known working wall outlet.",
+                    "2. Disconnect all external USB accessories, monitors, and docks, then test.",
+                    "3. Clean exterior ventilation ports with a dry cloth."
+                ],
+                "advanced_steps": [],
+                "troubleshooting_steps": [
+                    "1. Verify that the power adapter is properly plugged into a known working wall outlet.",
+                    "2. Disconnect all external USB accessories, monitors, and docks, then test.",
+                    "3. Clean exterior ventilation ports with a dry cloth.",
+                    "4. Bring the device to a certified repair technician for physical diagnostic testing."
+                ],
+                "supporting_evidence": ["Reported symptoms did not match specific component failure patterns."]
+            }
+            alternatives = []
+            diagnosis_note = "Inconclusive check: symptoms did not score above zero for any single known fault."
+            critical_alert = "Always disconnect power before inspection."
         else:
             top = scored_candidates[0]
             primary_rule = top["rule"]
@@ -826,37 +818,50 @@ class FaultDiagnosisEngine:
             diagnosis_note = f"High confidence rule match for '{primary_rule.title}' based on provided symptoms."
             evidence = top["evidence"]
 
-        # Build primary diagnosis block
-        primary_diag = {
-            "fault_id": primary_rule.fault_id,
-            "fault_title": primary_rule.title,
-            "confidence_score": confidence_level,
-            "severity": primary_rule.severity,
-            "repair_complexity": primary_rule.complexity,
-            "recommendation": primary_rule.recommendation,
-            "recommendation_rationale": primary_rule.rationale,
-            "estimated_diy_time": primary_rule.estimated_time,
-            "estimated_parts_cost": primary_rule.estimated_cost,
-            "required_tools": primary_rule.required_tools,
-            "safety_warnings": primary_rule.safety_warnings,
-            "troubleshooting_steps": primary_rule.troubleshooting_steps,
-            "supporting_evidence": evidence
-        }
+            primary_diag = {
+                "fault_id": primary_rule.fault_id,
+                "fault_title": primary_rule.title,
+                "confidence_score": confidence_level,
+                "severity": primary_rule.severity,
+                "repair_complexity": primary_rule.complexity,
+                "recommendation": primary_rule.recommendation,
+                "recommendation_rationale": primary_rule.rationale,
+                "estimated_diy_time": primary_rule.estimated_time,
+                "estimated_parts_cost": primary_rule.estimated_cost,
+                "required_tools": list(primary_rule.required_tools),
+                "safety_warnings": list(primary_rule.safety_warnings),
+                "safe_checks": list(primary_rule.safe_checks),
+                "advanced_steps": list(primary_rule.advanced_steps),
+                "troubleshooting_steps": list(primary_rule.troubleshooting_steps),
+                "supporting_evidence": evidence + safety_eval["safety_reasons"]
+            }
 
-        # Build alternative secondary diagnoses
-        alternatives = []
-        for item in scored_candidates[1:3]:
-            alt_rule = item["rule"]
-            alternatives.append({
-                "fault_id": alt_rule.fault_id,
-                "fault_title": alt_rule.title,
-                "confidence_score": item["score"],
-                "recommendation": alt_rule.recommendation,
-                "supporting_evidence": item["evidence"]
-            })
+            alternatives = []
+            for item in scored_candidates[1:3]:
+                alt_rule = item["rule"]
+                alternatives.append({
+                    "fault_id": alt_rule.fault_id,
+                    "fault_title": alt_rule.title,
+                    "confidence_score": item["score"],
+                    "recommendation": alt_rule.recommendation,
+                    "supporting_evidence": item["evidence"]
+                })
 
-        result = {
+            critical_alert = primary_rule.safety_warnings[0] if primary_rule.safety_warnings else "Always disconnect power before inspection."
+
+        # Hard hazard override
+        if safety_eval["safety_alert"]:
+            primary_diag["recommendation"] = "SERVICE (Professional)"
+            primary_diag["repair_complexity"] = "Dangerous (Do Not DIY)"
+            primary_diag["safe_checks"] = STOP_USING_ADVICE
+            primary_diag["advanced_steps"] = []  # CRITICAL / SERVICE-only rules have empty advanced_steps
+            primary_diag["troubleshooting_steps"] = STOP_USING_TROUBLESHOOTING_STEPS
+            primary_diag["safety_warnings"] = STOP_USING_ADVICE
+            critical_alert = STOP_USING_ADVICE[0]
+
+        return {
             "status": "success",
+            "supported": True,
             "device": canonical_device,
             "original_detection": {
                 "detected_device": device,
@@ -865,12 +870,12 @@ class FaultDiagnosisEngine:
             },
             "user_symptoms": user_symptoms,
             "diagnosis_note": diagnosis_note,
+            "safety_alert": safety_eval["safety_alert"],
+            "requires_professional_attention": safety_eval["requires_professional_attention"],
             "primary_diagnosis": primary_diag,
             "alternative_diagnoses": alternatives,
-            "critical_safety_alert": primary_rule.safety_warnings[0] if primary_rule.safety_warnings else "Always disconnect power before inspection."
+            "critical_safety_alert": critical_alert
         }
-
-        return result
 
     def _diagnose_with_gemini(
         self,
@@ -878,57 +883,51 @@ class FaultDiagnosisEngine:
         image_path: Optional[str] = None,
     ) -> Optional[Dict[str, Any]]:
         """
-        Use Gemini Flash for a fast symptom-aware diagnosis.
-        Returns None when Gemini is not configured or fails, allowing the
-        deterministic knowledge base below to act as a fallback.
+        Gemini path: include the allowed fault_id list in the prompt, require it to return
+        one fault_id plus confidence and reasoning, and fill everything else from the matching FaultRule.
+        Unknown id -> fall back cleanly to the rule engine.
         """
         api_key = os.getenv("GEMINI_API_KEY")
         if not api_key:
+            return None
+
+        device = questionnaire_payload.get("device_type", "laptop")
+        canonical_device = self.normalize_device_name(device)
+        rules = self.registry.get(canonical_device, [])
+        if not rules:
             return None
 
         try:
             from google import genai
             from google.genai import types
 
-            device = questionnaire_payload.get("device_type", "unknown")
             findings = questionnaire_payload.get("detected_findings", [])
             answers = questionnaire_payload.get("answers", {})
             model = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
 
+            # Build allowed fault_id list for prompt
+            allowed_fault_ids = [r.fault_id for r in rules]
+            catalog_lines = [f"- {r.fault_id}: {r.title} (Severity: {r.severity})" for r in rules]
+
             prompt = f"""
-You are the diagnostic assistant in a device repair application.
-Diagnose cautiously using the detected device, visual detections, and user questionnaire.
-Do not claim certainty when symptoms are inconclusive. Do not invent measurements,
-parts, or costs. Give only safe, non-invasive troubleshooting. Never instruct users
-to open mains electrical equipment, handle capacitors, work on live circuits, or open
-swollen batteries. If smoke, sparks, burning smell, electric shock, liquid exposure,
-or a swollen battery is reported, make the device safe to stop using and recommend a
-qualified professional.
+You are the diagnostic selector for a PC/laptop hardware repair application.
+Analyze the user answers and visual findings.
+You MUST select exactly ONE fault_id from the ALLOWED FAULT IDS below.
+Do not invent any new fault_id, cost, time, or repair step. All steps and costs come strictly from the verified database.
 
-Return ONLY valid JSON with this exact structure:
-{{
-  "primary_fault": "likely fault in plain language",
-  "confidence": 0.0,
-  "severity": "LOW|MEDIUM|HIGH|CRITICAL|UNKNOWN",
-  "reasoning": "brief explanation grounded in the evidence",
-  "supporting_evidence": ["evidence"],
-  "alternative_faults": ["possible alternative"],
-  "safety_alert": false,
-  "requires_professional_attention": false,
-  "safety_instructions": ["precaution"],
-  "troubleshooting_steps": ["safe, non-invasive step"],
-  "recommendation": "REPAIR (DIY)|SERVICE (Professional)|REPLACE|STOP USING AND SEEK PROFESSIONAL HELP",
-  "complexity": "Low|Medium|High|Dangerous",
-  "estimated_cost": "rough estimate or Unknown",
-  "estimated_time": "rough estimate or Unknown",
-  "required_tools": ["tool or none"],
-  "limitations": "what cannot be confirmed remotely"
-}}
+ALLOWED FAULT IDS:
+{chr(10).join(catalog_lines)}
 
-Device: {device}
-Object detector findings: {json.dumps(findings, ensure_ascii=False)}
+Device: {canonical_device}
+Visual findings: {json.dumps(findings, ensure_ascii=False)}
 Questionnaire answers: {json.dumps(answers, ensure_ascii=False)}
-Detection confidence: {questionnaire_payload.get("detection_confidence")}
+
+Return ONLY valid JSON with this exact schema:
+{{
+  "selected_fault_id": "EXACT_FAULT_ID_FROM_ALLOWED_LIST",
+  "confidence": 0.85,
+  "reasoning": "brief explanation grounded strictly in the symptoms"
+}}
 """
             contents = [prompt]
             if image_path:
@@ -948,189 +947,194 @@ Detection confidence: {questionnaire_payload.get("detection_confidence")}
                 contents=contents,
                 config=types.GenerateContentConfig(
                     response_mime_type="application/json",
-                    temperature=0.2,
-                    max_output_tokens=1200,
+                    temperature=0.1,
+                    max_output_tokens=400,
                 ),
             )
-            diagnosis = json.loads(response.text)
+            data = json.loads(response.text)
+            selected_id = str(data.get("selected_fault_id", "")).strip()
 
-            # Hard safety override: uncertainty ("Not sure") must not be treated
-            # as proof of a hazard, but affirmative hazards/liquid must be escalated.
-            answers_text = json.dumps(answers, ensure_ascii=False).lower()
-            hazard_answer = str(answers.get("hazards", "")).strip().lower()
-            cause_answer = str(answers.get("possible_cause", "")).strip().lower()
-            hazard_terms = ("smoke", "burning smell", "sparks", "electric shock",
-                            "swollen battery", "liquid exposure")
-            hard_hazard = hazard_answer == "yes" or (
-                "liquid exposure" in cause_answer or "water" in cause_answer
-            ) or any(term in answers_text for term in hazard_terms)
+            # Unknown id -> fall back to the rule engine
+            if selected_id not in allowed_fault_ids:
+                return None
 
-            safety_alert = bool(diagnosis.get("safety_alert", False) or hard_hazard)
-            professional = bool(
-                diagnosis.get("requires_professional_attention", False) or hard_hazard
+            matched_rule = next(r for r in rules if r.fault_id == selected_id)
+
+            safety_eval = evaluate_safety(
+                answers=answers,
+                existing_safety_alert=bool(questionnaire_payload.get("safety_alert")),
+                existing_requires_pro=bool(questionnaire_payload.get("requires_professional_attention"))
             )
-            if hard_hazard:
-                safety = diagnosis.get("safety_instructions") or []
-                safety.insert(0, "Stop using the device and disconnect power only if safe. Do not open it; seek qualified service.")
-                diagnosis["safety_instructions"] = list(dict.fromkeys(safety))
+
+            rec_action = matched_rule.recommendation
+            rec_complexity = matched_rule.complexity
+            safe_checks = list(matched_rule.safe_checks)
+            advanced_steps = list(matched_rule.advanced_steps)
+            troubleshooting_steps = list(matched_rule.troubleshooting_steps)
+            safety_instructions = list(matched_rule.safety_warnings)
+
+            if safety_eval["safety_alert"]:
+                rec_action = "SERVICE (Professional)"
+                rec_complexity = "Dangerous (Do Not DIY)"
+                safe_checks = STOP_USING_ADVICE
+                advanced_steps = []
+                troubleshooting_steps = STOP_USING_TROUBLESHOOTING_STEPS
+                safety_instructions = STOP_USING_ADVICE
 
             result = dict(questionnaire_payload)
-            result["safety_alert"] = safety_alert
-            result["requires_professional_attention"] = professional
+            result["safety_alert"] = safety_eval["safety_alert"]
+            result["requires_professional_attention"] = safety_eval["requires_professional_attention"]
+            result["supported"] = True
             result["diagnosis"] = {
-                "primary_fault": str(diagnosis.get("primary_fault", "Cause uncertain")),
-                "fault_id": "GEMINI_DIAGNOSIS",
-                "confidence": max(0.0, min(1.0, float(diagnosis.get("confidence", 0.4)))),
-                "severity": str(diagnosis.get("severity", "UNKNOWN")).upper(),
-                "reasoning": str(diagnosis.get("reasoning", "")),
-                "supporting_evidence": diagnosis.get("supporting_evidence", []),
-                "secondary_faults": diagnosis.get("alternative_faults", []),
-                "safety_instructions": diagnosis.get("safety_instructions", []),
-                "troubleshooting_steps": diagnosis.get("troubleshooting_steps", []),
-                "limitations": str(diagnosis.get("limitations", "")),
+                "primary_fault": matched_rule.title,
+                "fault_id": matched_rule.fault_id,
+                "confidence": max(0.0, min(1.0, float(data.get("confidence", 0.8)))),
+                "severity": matched_rule.severity,
+                "reasoning": data.get("reasoning", matched_rule.rationale),
+                "supporting_evidence": safety_eval["safety_reasons"] or [data.get("reasoning", "")],
+                "secondary_faults": [],
+                "safe_checks": safe_checks,
+                "advanced_steps": advanced_steps,
+                "safety_instructions": safety_instructions,
+                "troubleshooting_steps": troubleshooting_steps,
             }
             result["repair_recommendation"] = {
-                "action": diagnosis.get("recommendation", "SERVICE (Professional)"),
-                "complexity": diagnosis.get("complexity", "Unknown"),
-                "rationale": diagnosis.get("reasoning", ""),
-                "estimated_cost": diagnosis.get("estimated_cost", "Unknown"),
-                "estimated_time": diagnosis.get("estimated_time", "Unknown"),
-                "required_tools": diagnosis.get("required_tools", []),
+                "action": rec_action,
+                "complexity": rec_complexity,
+                "rationale": matched_rule.rationale,
+                "estimated_cost": matched_rule.estimated_cost,
+                "estimated_time": matched_rule.estimated_time,
+                "required_tools": list(matched_rule.required_tools),
             }
-            result["diagnosis_provider"] = "gemini"
+            result["diagnosis_provider"] = "gemini_selected_kb_backed"
             return result
 
-        except Exception as error:
-            # Do not expose credentials or block the app if the API is unavailable.
-            result = dict(questionnaire_payload)
-            result["gemini_error"] = f"Gemini diagnosis unavailable; used rule-based fallback ({type(error).__name__})."
+        except Exception:
             return None
 
-    def diagnose_questionnaire(self, questionnaire_payload: Dict[str, Any], image_path: Optional[str] = None, use_gemini: bool = True) -> Dict[str, Any]:
+    def diagnose_questionnaire(
+        self,
+        questionnaire_payload: Dict[str, Any],
+        image_path: Optional[str] = None,
+        use_gemini: bool = True
+    ) -> Dict[str, Any]:
         """
-        Takes a questionnaire output payload (with device_type, detected_findings, answers)
-        and populates:
-          - 'safety_alert': bool (set to True if hazards, liquid, or high-risk faults exist)
-          - 'requires_professional_attention': bool
-          - 'diagnosis': detailed structured diagnosis object
-          - 'repair_recommendation': actionable recommendation object with cost & complexity
+        Takes a questionnaire output payload and populates structured diagnosis.
+        (a) Symptom text built from answer VALUES only, skipping neutral answers.
         """
         result = dict(questionnaire_payload)
+        device = result.get("device_type", "laptop")
+        canonical_device = self.normalize_device_name(device)
+
+        if canonical_device not in self.registry:
+            return {
+                "status": "unsupported_device",
+                "supported": False,
+                "module": "questionnaire",
+                "device_type": device,
+                "message": f"Device category '{device}' is not supported yet. 'Repair Before Replace' currently provides in-depth diagnosis for Laptops and PCs only.",
+                "safety_advice": GENERAL_UNSUPPORTED_SAFETY_ADVICE,
+                "safety_alert": False,
+                "requires_professional_attention": False,
+                "diagnosis": None,
+                "repair_recommendation": None,
+            }
+
+        answers = result.get("answers", {})
+        findings = result.get("detected_findings", [])
+
+        # Shared safety evaluation
+        safety_eval = evaluate_safety(
+            answers=answers,
+            free_text=" ".join(findings) if findings else None,
+            existing_safety_alert=bool(result.get("safety_alert")),
+            existing_requires_pro=bool(result.get("requires_professional_attention"))
+        )
+
         if use_gemini:
             gemini_result = self._diagnose_with_gemini(questionnaire_payload, image_path=image_path)
             if gemini_result is not None:
                 return gemini_result
 
-        device = result.get("device_type", "laptop")
-        findings = result.get("detected_findings", [])
-        answers = result.get("answers", {})
-        det_conf = result.get("detection_confidence", 0.90)
-
-        # 1. Synthesize symptom string from visual findings and questionnaire answers
-        symptom_parts = []
+        # (a) Build symptom text from answer VALUES only, skip neutral answers
+        neutral_answers = {
+            "", "no", "none", "not tested", "normal", "works normally",
+            "normal temperature", "no known event", "unknown", "n/a",
+            "none of the above", "not sure", "not sure / not applicable",
+            "no component label returned", "starts normally"
+        }
+        symptom_values = []
         if findings:
-            symptom_parts.append(f"Visual detection findings: {', '.join(findings)}")
+            symptom_values.extend(findings)
 
-        ignored_answers = {"", "no", "none", "not tested", "normal", "unknown", "n/a", "none of the above"}
-        for question_key, ans in answers.items():
-            if str(ans).strip().lower() not in ignored_answers:
-                clean_key = question_key.replace("_", " ")
-                symptom_parts.append(f"{clean_key}: {ans}")
+        for k, ans in answers.items():
+            cleaned = str(ans).strip()
+            if cleaned.lower() not in neutral_answers:
+                symptom_values.append(cleaned)
 
-        combined_symptoms = ". ".join(symptom_parts)
-        if not combined_symptoms:
-            combined_symptoms = "Device is not operating as expected."
+        combined_symptoms = ". ".join(symptom_values) or "Device is not operating as expected."
 
-        # 2. Safety & Hazard Analysis
-        hazards = str(answers.get("hazards", "")).strip().lower()
-        possible_cause = str(answers.get("possible_cause", "")).strip().lower()
-
-        safety_alert = False
-        requires_pro = False
-        safety_reasons = []
-
-        if hazards not in ["no", "", "none", "n/a"]:
-            safety_alert = True
-            requires_pro = True
-            safety_reasons.append(f"Reported active hazard: {answers.get('hazards')}")
-
-        if "liquid" in possible_cause or "water" in possible_cause:
-            safety_alert = True
-            requires_pro = True
-            safety_reasons.append("Liquid exposure causes severe corrosion and micro-shorts under surface-mount ICs. Requires ultrasonic board cleaning.")
-
-        if any(term in combined_symptoms.lower() for term in ["spark", "smoke", "shock", "burning", "burnt"]):
-            safety_alert = True
-            requires_pro = True
-            safety_reasons.append("Thermal/electrical hazard detected (sparking, smoke, or burning smell).")
-
-        # 3. Execute core diagnosis
         base_diag = self.diagnose(
-            device=device,
+            device=canonical_device,
             user_symptoms=combined_symptoms,
-            detection_confidence=det_conf
+            detection_confidence=result.get("detection_confidence", 0.90)
         )
 
         primary = base_diag["primary_diagnosis"]
         alternatives = base_diag.get("alternative_diagnoses", [])
 
-        # If severity is CRITICAL or DANGEROUS, elevate flags
-        if primary["severity"] in ["CRITICAL", "HIGH"] or "dangerous" in primary["repair_complexity"].lower():
-            safety_alert = True
-            if "service" in primary["recommendation"].lower() or "dangerous" in primary["repair_complexity"].lower():
-                requires_pro = True
+        safety_alert = safety_eval["safety_alert"] or base_diag.get("safety_alert", False)
+        requires_pro = safety_eval["requires_professional_attention"] or base_diag.get("requires_professional_attention", False)
 
-        # Check visual findings (e.g. screen crack) to augment secondary faults or recommendation
-        if any("crack" in f.lower() for f in findings) and primary["fault_id"] != "LAPTOP_PHYSICAL_SCREEN_DAMAGE":
-            alternatives.insert(0, {
-                "fault_id": "LAPTOP_PHYSICAL_SCREEN_DAMAGE",
-                "fault_title": "Cracked LCD / OLED Display Panel (Physical Impact)",
-                "confidence_score": 0.95,
-                "recommendation": "REPLACE (Display Panel Assembly)",
-                "supporting_evidence": ["Visual object detection identified physical screen fracture."]
-            })
+        rec_action = primary["recommendation"]
+        rec_complexity = primary["repair_complexity"]
+        safe_checks = list(primary.get("safe_checks", []))
+        advanced_steps = list(primary.get("advanced_steps", []))
+        troubleshooting_steps = list(primary.get("troubleshooting_steps", []))
+        safety_instructions = list(primary.get("safety_warnings", []))
 
-        # 4. Format populated diagnosis block
+        if safety_alert:
+            rec_action = "SERVICE (Professional)"
+            rec_complexity = "Dangerous (Do Not DIY)"
+            safe_checks = STOP_USING_ADVICE
+            advanced_steps = []
+            troubleshooting_steps = STOP_USING_TROUBLESHOOTING_STEPS
+            safety_instructions = STOP_USING_ADVICE
+
         result["safety_alert"] = safety_alert
         result["requires_professional_attention"] = requires_pro
+        result["supported"] = True
 
         result["diagnosis"] = {
             "primary_fault": primary["fault_title"],
             "fault_id": primary["fault_id"],
             "confidence": primary["confidence_score"],
             "severity": primary["severity"],
-            "supporting_evidence": primary["supporting_evidence"] + safety_reasons,
-            "safety_instructions": primary["safety_warnings"],
-            "troubleshooting_steps": primary["troubleshooting_steps"],
-            "secondary_faults": [
-                {
-                    "fault_id": alt["fault_id"],
-                    "fault_title": alt["fault_title"],
-                    "confidence": alt["confidence_score"],
-                    "recommendation": alt["recommendation"]
-                }
-                for alt in alternatives
-            ]
+            "supporting_evidence": primary["supporting_evidence"] + safety_eval["safety_reasons"],
+            "safe_checks": safe_checks,
+            "advanced_steps": advanced_steps,
+            "safety_instructions": safety_instructions,
+            "troubleshooting_steps": troubleshooting_steps,
+            "secondary_faults": alternatives,
         }
 
-        # 5. Format populated repair recommendation block
         result["repair_recommendation"] = {
-            "action": primary["recommendation"],
-            "complexity": primary["repair_complexity"],
-            "rationale": primary["recommendation_rationale"],
-            "estimated_cost": primary["estimated_parts_cost"],
-            "estimated_time": primary["estimated_diy_time"],
-            "required_tools": primary["required_tools"]
+            "action": rec_action,
+            "complexity": rec_complexity,
+            "rationale": primary.get("recommendation_rationale", ""),
+            "estimated_cost": primary.get("estimated_parts_cost", "Unknown"),
+            "estimated_time": primary.get("estimated_diy_time", "Unknown"),
+            "required_tools": primary.get("required_tools", [])
         }
 
         return result
 
     def get_supported_devices(self) -> List[str]:
-        return list(self.kb.keys())
+        return list(self.registry.keys())
 
     def get_device_symptom_checklist(self, device: str) -> List[str]:
         canonical = self.normalize_device_name(device)
-        rules = self.kb.get(canonical, [])
+        rules = self.registry.get(canonical, [])
         checklist = []
         for r in rules:
             checklist.extend(r.common_symptoms)
@@ -1151,9 +1155,7 @@ def process_questionnaire(
     image_path: Optional[str] = None,
     use_gemini: bool = True,
 ) -> Dict[str, Any]:
-    """Diagnose questionnaire answers with Gemini, falling back to local rules."""
+    """Diagnose questionnaire answers with shared safety, falling back to local rules."""
     return engine.diagnose_questionnaire(
         questionnaire_data, image_path=image_path, use_gemini=use_gemini
     )
-
-

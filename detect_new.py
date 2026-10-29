@@ -52,7 +52,7 @@ def get_model_id():
     model_id = os.environ.get("ROBOFLOW_MODEL_ID")
     if not model_id:
         raise RuntimeError("ROBOFLOW_MODEL_ID is not set (e.g. 'my-project/3').")
-    return model_id
+    return model_id.strip()
 
 
 def get_client():
@@ -63,7 +63,7 @@ def get_client():
         if not api_key:
             raise RuntimeError("ROBOFLOW_API_KEY is not set. Put it in .env or your environment.")
         from inference_sdk import InferenceHTTPClient, InferenceConfiguration
-        _client = InferenceHTTPClient(api_url=ROBOFLOW_API_URL, api_key=api_key)
+        _client = InferenceHTTPClient(api_url=ROBOFLOW_API_URL, api_key=api_key.strip())
         # Roboflow's server hides predictions below ~40% by default, which would
         # silently override our --conf. Ask for everything above a low floor and
         # apply the real threshold ourselves in run_inference().

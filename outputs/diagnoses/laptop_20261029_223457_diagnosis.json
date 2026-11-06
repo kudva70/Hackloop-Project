@@ -1,0 +1,144 @@
+{
+  "status": "success",
+  "module": "questionnaire",
+  "device_type": "laptop",
+  "detected_findings": [],
+  "detection_confidence": null,
+  "image_path": null,
+  "answers": {
+    "affected_component": "Not sure",
+    "power_state": "Not sure",
+    "startup_signals": "Not sure",
+    "memory_storage": "Not sure / not applicable",
+    "display": "Not sure / not applicable",
+    "temperature": "Not sure",
+    "charging": "Not sure / not applicable",
+    "recent_event": "No known event",
+    "hazards": "Not sure",
+    "duration": "Not sure"
+  },
+  "free_text": "laptop has burning smell and smoke coming out from vents",
+  "safety_alert": true,
+  "requires_professional_attention": true,
+  "diagnosis": {
+    "primary_fault": "Inconclusive - professional inspection recommended",
+    "fault_id": "INCONCLUSIVE_INSPECTION_RECOMMENDED",
+    "confidence": 0.15,
+    "severity": "LOW",
+    "supporting_evidence": [
+      "Reported symptoms did not match specific component failure patterns.",
+      "Free-text symptom description contains confirmed hazard term: 'smoke'.",
+      "Free-text symptom description contains confirmed hazard term: 'burning smell'."
+    ],
+    "safe_checks": [
+      "CRITICAL SAFETY WARNING: Stop using the device immediately.",
+      "Do NOT power on, plug in, or charge the device.",
+      "Do NOT attempt to open the casing or tamper with internal components (high risk of fire, electric shock, or chemical hazard).",
+      "Disconnect from the wall outlet only if the plug and cord are completely cool and safe to touch.",
+      "Take the device to a certified professional technician or authorized service center."
+    ],
+    "advanced_steps": [],
+    "safety_instructions": [
+      "CRITICAL SAFETY WARNING: Stop using the device immediately.",
+      "Do NOT power on, plug in, or charge the device.",
+      "Do NOT attempt to open the casing or tamper with internal components (high risk of fire, electric shock, or chemical hazard).",
+      "Disconnect from the wall outlet only if the plug and cord are completely cool and safe to touch.",
+      "Take the device to a certified professional technician or authorized service center."
+    ],
+    "troubleshooting_steps": [
+      "1. Immediately stop using the device and do not press the power button.",
+      "2. If safely accessible without touching hot, wet, or sparking areas, unplug the charger from the wall socket.",
+      "3. Do NOT open the laptop casing, touch internal circuit boards, or attempt DIY teardown.",
+      "4. Place the device in a well-ventilated, non-flammable area away from liquids and combustible items.",
+      "5. Contact a qualified hardware repair professional or authorized manufacturer service center."
+    ],
+    "secondary_faults": []
+  },
+  "repair_recommendation": {
+    "action": "SERVICE (Professional)",
+    "complexity": "Dangerous (Do Not DIY)",
+    "rationale": "The symptoms provided did not match any single known failure mode with sufficient confidence. A hands-on hardware inspection by a technician is recommended.",
+    "estimated_cost": "To be quoted after inspection",
+    "estimated_time": "Not applicable",
+    "required_tools": []
+  },
+  "created_at": "2026-10-29T17:04:52.921822+00:00",
+  "supported": true,
+  "repair_decision": {
+    "verdict": "SERVICE (technician)",
+    "safety_hold": true,
+    "low_confidence": true,
+    "repair_cost_range": [
+      null,
+      null
+    ],
+    "replacement_cost": 45000.0,
+    "cost_ratio": null,
+    "estimated_saving": null,
+    "e_waste": {
+      "status": "avoided",
+      "amount_kg": 2.1,
+      "unit": "kg",
+      "assumption": "Typical laptop mass is estimated at 2.1 kg (editable assumption).",
+      "summary": "Estimated e-waste avoided: ~2.1 kg (estimate based on typical laptop mass)."
+    },
+    "reasons": [
+      "Safety hazard / critical hardware risk detected (e.g. swollen battery, liquid exposure, or power surge). Immediate professional servicing is required; do not attempt DIY repair.",
+      "Low-confidence note: Repair cost could not be parsed from diagnosis (requires physical quote).",
+      "Low-confidence note: Diagnosis is inconclusive and requires professional bench testing."
+    ],
+    "decision_factors": [
+      {
+        "factor": "cost_ratio",
+        "repair_cost_mid_inr": null,
+        "replacement_cost_inr": 45000.0,
+        "ratio": null,
+        "threshold_replace": 0.6,
+        "threshold_replace_old": 0.4,
+        "detail": "Cost not parsed"
+      },
+      {
+        "factor": "device_age",
+        "age_years": 5.0,
+        "typical_life_years": 5.0,
+        "life_used_ratio": 1.0,
+        "detail": "5 years old (100% of typical 5-yr life)"
+      },
+      {
+        "factor": "safety_hold",
+        "active": true,
+        "severity": "LOW",
+        "detail": "Safety hazard / critical severity override active"
+      },
+      {
+        "factor": "complexity",
+        "level": "Dangerous (Do Not DIY)",
+        "detail": "Complexity: Dangerous (Do Not DIY)"
+      },
+      {
+        "factor": "confidence",
+        "diagnostic_confidence": 0.15,
+        "is_low_confidence": true,
+        "detail": "Low-confidence verdict: Repair cost could not be parsed from diagnosis (requires physical quote).; Diagnosis is inconclusive and requires professional bench testing."
+      }
+    ],
+    "assumptions": [
+      "Replacement price: Rs 45,000 (default assumption; override with --replacement-cost)",
+      "Typical lifespan: 5 years; device age: 5 years (user entered)",
+      "Typical laptop mass for e-waste calculations: 2.1 kg (estimate assumption).",
+      "Repair cost is an estimated parts range from knowledge base, not a formal service center quote.",
+      "Part replacement (e.g. replacing an LCD panel or battery) is categorized as repair of the device, not whole-device replacement."
+    ]
+  },
+  "visual_analysis": null,
+  "input_image": null,
+  "decision_inputs": {
+    "device_age_years": 5.0,
+    "replacement_cost_override_inr": null
+  },
+  "explanation": {
+    "text": "Recommendation: SERVICE (technician). Most likely issue: Inconclusive - professional inspection recommended. Safety hazard / critical hardware risk detected (e.g. swollen battery, liquid exposure, or power surge). Immediate professional servicing is required; do not attempt DIY repair. Low-confidence note: Repair cost could not be parsed from diagnosis (requires physical quote). Repairing this device avoids an estimated 2.1 kg of e-waste (estimate). Safety first: unplug the device and do not power it on until a technician has checked it.",
+    "source": "built-in template",
+    "note": "Gemma unavailable (api: 404 Client Error: Not Found for url: https://generativelanguage.googleapis.com/v1beta/models/gemma-3-27b-it:generateContent)"
+  }
+}

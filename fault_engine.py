@@ -13,6 +13,12 @@ import re
 from pathlib import Path
 from dataclasses import dataclass, asdict
 
+try:
+    from evidence_engine import EvidenceDiagnosisEngine, ConfidenceCategory
+except ImportError:
+    EvidenceDiagnosisEngine = None
+    ConfidenceCategory = None
+
 
 @dataclass
 class FaultRule:
@@ -479,12 +485,362 @@ LAPTOP_RULES: List[FaultRule] = [
 ]
 
 
+
+# ===========================================================================
+# EXPERT KNOWLEDGE BASE: DESKTOP PCS (8 Comprehensive Rules)
+# ===========================================================================
+
+DESKTOP_RULES: List[FaultRule] = [
+    # 1. Desktop Power Supply Unit (PSU) / Power Cable / Surge Failure
+    FaultRule(
+        fault_id="DESKTOP_PSU_POWER_FAILURE",
+        title="Faulty ATX Power Supply Unit (PSU) / Dead Power Cable / Tripped Switch",
+        severity="MEDIUM",
+        complexity="Medium (Intermediate)",
+        recommendation="REPAIR (DIY PSU Swap) / SERVICE (Professional)",
+        rationale="Swapping an ATX power supply or power cord resolves no-power conditions without micro-soldering.",
+        required_tools=["Phillips Screwdriver PH2", "Confirmed Working IEC Power Cable", "Paperclip / PSU Jumper Bridge", "Voltmeter / Digital PSU Tester"],
+        estimated_cost="₹1,800 - ₹5,500 ($22 - $65)",
+        estimated_time="30 - 45 minutes",
+        safety_warnings=[
+            "CRITICAL ELECTRICAL HAZARD: Never open the metal casing of an ATX power supply (PSU). High-voltage internal bulk capacitors retain lethal electrical charge (up to 400V) even when disconnected from mains power!",
+            "Disconnect the mains power cable before touching any internal power supply cables or motherboard headers."
+        ],
+        safe_checks=[
+            "1. Verify the I/O rocker switch on the back of the PSU is toggled to the 'I' (ON) position.",
+            "2. Ensure the AC power cord is pushed fully and firmly into the 3-pin IEC socket on the PSU.",
+            "3. Plug the PC directly into a confirmed working wall outlet, bypassing extension cords or power strips.",
+            "4. Check if the standby LED on the motherboard lights up when AC power is connected."
+        ],
+        advanced_steps=[
+            "1. Switch off PSU and unplug mains power cord from the wall.",
+            "2. Disconnect the 24-pin ATX main motherboard power connector.",
+            "3. Perform the safe paperclip test (bridge green PS_ON pin 16 to any adjacent black COM ground pin 15 or 17). Plug in AC power and check if the PSU internal fan spins.",
+            "4. If PSU fan does not spin or outputs incorrect voltages, replace the ATX PSU with an 80-Plus certified unit of sufficient wattage."
+        ],
+        positive_keywords=[
+            "psu", "power supply", "desktop wont turn on", "pc wont turn on", "dead pc",
+            "no power", "no fans spinning", "psu fan not spinning", "power cord", "atx power",
+            "pc completely dead", "no lights on desktop"
+        ],
+        negative_keywords=["black screen", "water", "spill", "cracked", "display cable", "ram error"],
+        common_symptoms=[
+            "Desktop PC completely dead with zero fan spin, no LED lights, and no relay click",
+            "PSU makes a clicking noise and immediately trips off when power button is pressed",
+            "System powers off abruptly under gaming or heavy CPU/GPU workload"
+        ],
+        co_occurrence_patterns=[
+            ["psu", "power"],
+            ["pc", "wont turn on"],
+            ["desktop", "dead"],
+            ["no power", "psu"]
+        ]
+    ),
+
+    # 2. Monitor Plugged into Motherboard / Unseated Discrete GPU
+    FaultRule(
+        fault_id="DESKTOP_GPU_SEATING_OR_PORT_MISMATCH",
+        title="Monitor Cable in Motherboard Port / Unseated PCIe GPU / Missing PCIe Power",
+        severity="MEDIUM",
+        complexity="Low (Beginner)",
+        recommendation="REPAIR (DIY)",
+        rationale="Plugging monitor into the motherboard integrated I/O instead of the discrete GPU, or unseated PCIe power cables, is the #1 cause of desktop 'no signal' display faults.",
+        required_tools=["Phillips Screwdriver PH2", "Compatible HDMI / DisplayPort Cable"],
+        estimated_cost="₹0 ($0)",
+        estimated_time="10 - 20 minutes",
+        safety_warnings=[
+            "Power off and disconnect the AC power cord before opening the desktop side panel or touching the graphics card."
+        ],
+        safe_checks=[
+            "1. Inspect the back of the PC: ensure the monitor HDMI or DisplayPort cable is plugged into the HORIZONTAL graphics card ports, NOT the vertical motherboard ports near USB ports.",
+            "2. Verify the monitor power cable is connected and the monitor input source is set to the correct HDMI or DisplayPort input.",
+            "3. Test with a different confirmed working HDMI or DisplayPort cable."
+        ],
+        advanced_steps=[
+            "1. Power off PC, unplug AC cable, and remove the left chassis side panel.",
+            "2. Check if the dedicated 6-pin / 8-pin PCIe auxiliary power cables from the PSU are fully clicked into the GPU.",
+            "3. Unscrew the GPU PCI expansion bracket, release the PCIe slot retention latch, remove the GPU, and blow clean any dust.",
+            "4. Reinsert the GPU firmly into the top primary PCIe x16 slot until the latch snaps locked. Re-fasten bracket screws and reconnect power cables."
+        ],
+        positive_keywords=[
+            "monitor no signal", "gpu", "graphics card", "displayport", "hdmi port",
+            "fans spin but no display", "pc turns on no display", "black screen on monitor",
+            "gpu fans not spinning", "pcie power", "motherboard hdmi"
+        ],
+        negative_keywords=["smoke", "liquid", "spill", "water", "burnt smell"],
+        common_symptoms=[
+            "Desktop PC fans spin and RGB lights turn on, but monitor shows 'No Signal'",
+            "Monitor cable was accidentally plugged into motherboard port while CPU has no integrated graphics",
+            "GPU fans twitch on startup then stop with no display output"
+        ],
+        co_occurrence_patterns=[
+            ["monitor", "no signal"],
+            ["gpu", "no display"],
+            ["fans spin", "no display"],
+            ["pc turns on", "black screen"]
+        ]
+    ),
+
+    # 3. Desktop RAM Contact Oxidation / POST Failure
+    FaultRule(
+        fault_id="DESKTOP_RAM_CONTACT_POST_FAILURE",
+        title="RAM Module Contact Oxidation / Unseated DIMM / POST Memory Error",
+        severity="MEDIUM",
+        complexity="Low (Beginner)",
+        recommendation="REPAIR (DIY)",
+        rationale="Reseating desktop DDR4/DDR5 DIMMs or cleaning oxidized contact pins with an eraser restores system POST in majority of memory failures.",
+        required_tools=["Clean Pencil Eraser", "Microfiber Cloth", "Compressed Air"],
+        estimated_cost="₹0 ($0)",
+        estimated_time="15 - 25 minutes",
+        safety_warnings=[
+            "Disconnect mains power and ground yourself before handling memory modules to prevent electrostatic discharge (ESD) damage."
+        ],
+        safe_checks=[
+            "1. Observe motherboard EZ Debug LEDs (CPU, DRAM, VGA, BOOT): check if the 'DRAM' LED stays solid orange/amber.",
+            "2. Listen for motherboard speaker beep codes (e.g. continuous long beeps indicate memory not detected).",
+            "3. Test keyboard: check if Caps Lock or Num Lock toggles when pressed."
+        ],
+        advanced_steps=[
+            "1. Power off, unplug power cord, and remove side panel.",
+            "2. Push down the retention latches at the ends of the RAM slots to eject the DIMM modules.",
+            "3. Gently rub the gold contact pins on both sides of each stick with a clean pencil eraser to remove microscopic oxidation.",
+            "4. Wipe clean with a microfiber cloth and blow dust from slots with compressed air.",
+            "5. Reinsert RAM firmly into slots (prefer slots A2 and B2 for two-stick configurations) until both side clips snap shut."
+        ],
+        positive_keywords=[
+            "ram", "memory error", "dimm", "dram led", "beep code",
+            "continuous beeps", "long beeps", "ram slot", "wont boot dram", "post failure"
+        ],
+        negative_keywords=["liquid", "spill", "crack", "water"],
+        common_symptoms=[
+            "Motherboard DRAM diagnostic LED stays lit and system does not POST",
+            "PC beeps continuously on power-on with no display output",
+            "Frequent BSOD memory management crashes or Windows freezing"
+        ],
+        co_occurrence_patterns=[
+            ["dram", "led"],
+            ["ram", "beep"],
+            ["memory", "post"],
+            ["ram", "no display"]
+        ]
+    ),
+
+    # 4. CPU Cooler / Heatsink Mounting / AIO Pump Failure
+    FaultRule(
+        fault_id="DESKTOP_CPU_COOLING_FAILURE",
+        title="CPU Cooler Pump Failure / Loose Mounting Bracket / Dried Thermal Paste",
+        severity="MEDIUM",
+        complexity="Medium (Intermediate)",
+        recommendation="REPAIR (DIY)",
+        rationale="Remounting desktop cooler with fresh thermal paste or replacing a seized fan/AIO liquid cooler restores normal CPU thermals.",
+        required_tools=["Phillips Screwdriver PH2", "High-Performance Thermal Paste (Noctua/Arctic MX-4)", "99% Isopropyl Alcohol", "Lint-Free Wipes"],
+        estimated_cost="₹400 - ₹2,500 ($5 - $30)",
+        estimated_time="30 - 50 minutes",
+        safety_warnings=[
+            "Allow the CPU and heatsink to cool down completely before touching to prevent skin burns.",
+            "Never run the PC under heavy load if the CPU fan or AIO liquid pump is seized."
+        ],
+        safe_checks=[
+            "1. Boot into BIOS setup (Del/F2) and check CPU temperature: if temperature rapidly climbs past 90°C at idle, cooler has no contact or AIO pump is dead.",
+            "2. Check if the CPU cooler fan spins freely or if it is obstructed by internal cables.",
+            "3. If using an AIO liquid cooler: touch both water tubes; if one tube is boiling hot and the other is cold with vibrating pump head, the pump impeller has failed."
+        ],
+        advanced_steps=[
+            "1. Power off, disconnect AC cord, and open side panel.",
+            "2. Unscrew cooler mounting screws in a diagonal pattern and carefully twist-lift the cooler (do not yank CPU out of socket).",
+            "3. Check whether the transparent plastic protective sticker was left on the cooler coldplate base (common builder error).",
+            "4. Clean old crusty paste from CPU heat spreader (IHS) and cooler base with 99% isopropyl alcohol.",
+            "5. Apply a pea-sized dot of quality thermal paste, reseat cooler squarely, and torque mounting screws evenly."
+        ],
+        positive_keywords=[
+            "cpu overheating", "aio pump", "cpu fan error", "cpu 90c", "desktop overheating",
+            "cpu thermal throttling", "cooler fan loud", "cpu cooler", "pump noise", "pc shuts down gaming"
+        ],
+        negative_keywords=["liquid spill", "water spill", "screen crack"],
+        common_symptoms=[
+            "CPU temperature reaches 95°C+ within 60 seconds of turning on the PC",
+            "PC abruptly shuts down during games or video rendering (thermal protection shutdown)",
+            "AIO liquid cooler makes loud buzzing, clicking, or rattling pump sounds"
+        ],
+        co_occurrence_patterns=[
+            ["cpu", "overheating"],
+            ["cpu", "temp"],
+            ["cooler", "fan"],
+            ["aio", "pump"]
+        ]
+    ),
+
+    # 5. Desktop SSD / HDD Storage Drive Failure
+    FaultRule(
+        fault_id="DESKTOP_STORAGE_DRIVE_FAILURE",
+        title="Desktop SSD / HDD Failure / Loose SATA or M.2 NVMe Connection",
+        severity="MEDIUM",
+        complexity="Low (Beginner)",
+        recommendation="REPAIR (DIY)",
+        rationale="Reconnecting loose SATA data/power cables or reseating M.2 NVMe drives in desktop motherboards resolves non-detectable boot drives.",
+        required_tools=["Phillips Screwdriver PH1/PH2", "Replacement SATA Cable / M.2 NVMe SSD", "USB Drive (OS Installer)"],
+        estimated_cost="₹2,000 - ₹5,500 ($25 - $65)",
+        estimated_time="15 - 30 minutes",
+        safety_warnings=[
+            "Disconnect power before handling internal storage drives or SATA headers."
+        ],
+        safe_checks=[
+            "1. Enter BIOS (Del/F2) to verify whether the NVMe SSD or SATA hard drive is detected in the storage device list.",
+            "2. Disconnect external USB flash drives or external HDDs that might be interrupting boot order.",
+            "3. Check if mechanical HDD is clicking, grinding, or spinning up."
+        ],
+        advanced_steps=[
+            "1. Power off, unplug power cord, and remove side panel.",
+            "2. For 2.5-inch / 3.5-inch drives: disconnect and firmly reconnect both the SATA data cable and the SATA power cable from the PSU.",
+            "3. For M.2 NVMe: unscrew the M.2 heatsink and mounting screw, reseat the drive at a 30-degree angle, and re-tighten the screw.",
+            "4. If drive is corrupted or dead, replace with a new SSD and reinstall operating system."
+        ],
+        positive_keywords=[
+            "no bootable device", "desktop ssd not detected", "hard drive clicking",
+            "reboot and select proper boot device", "sata not detected", "m.2 ssd not detected",
+            "disk read error", "hdd grinding"
+        ],
+        negative_keywords=["black screen", "spill", "water"],
+        common_symptoms=[
+            "System boots directly to BIOS or displays 'Reboot and Select proper Boot device'",
+            "Internal SSD or hard disk missing from BIOS boot priority list",
+            "Mechanical hard drive makes repeating rhythmic clicking noises (Click of Death)"
+        ],
+        co_occurrence_patterns=[
+            ["boot", "device"],
+            ["ssd", "not detected"],
+            ["hard drive", "clicking"],
+            ["sata", "error"]
+        ]
+    ),
+
+    # 6. Front Panel Power Switch or Disconnected Header
+    FaultRule(
+        fault_id="DESKTOP_FRONT_PANEL_POWER_SWITCH",
+        title="Faulty Front Panel Power Button / Disconnected Motherboard Header Cable",
+        severity="LOW",
+        complexity="Low (Beginner)",
+        recommendation="REPAIR (DIY)",
+        rationale="Front-panel 2-pin power switch (PWR_SW) wires frequently come loose during transport or cleaning, preventing the power button from turning on the PC.",
+        required_tools=["Flathead Screwdriver", "Flashlight / Phone Light"],
+        estimated_cost="₹0 - ₹200 ($0 - $3)",
+        estimated_time="10 - 15 minutes",
+        safety_warnings=[
+            "Exercise caution when bridging header pins; touch only the two labeled PWR_SW pins."
+        ],
+        safe_checks=[
+            "1. Inspect the PC front/top panel: ensure the physical power button is not mechanically stuck or jammed in the depressed position.",
+            "2. If the motherboard has a built-in onboard power button, press it directly to test if the system boots."
+        ],
+        advanced_steps=[
+            "1. Power off, unplug AC cable, and remove side panel.",
+            "2. Locate the front-panel header cluster (F_PANEL) at the bottom right corner of the motherboard.",
+            "3. Verify that the 2-pin 'POWER SW' or 'PWR_BTN' connector is securely plugged into the correct pins according to the motherboard label/diagram.",
+            "4. Test jump-starting: unplug the PWR_SW wire, plug in AC power, and gently bridge the two PWR_SW pins for 1 second with the metal tip of a flathead screwdriver. If system boots, the case power button or cable is broken."
+        ],
+        positive_keywords=[
+            "power button does nothing", "front panel button", "power button broken",
+            "power switch loose", "pc wont turn on power button", "front panel header", "jump start pc"
+        ],
+        negative_keywords=["spill", "smoke", "burnt", "spark"],
+        common_symptoms=[
+            "Pressing the cabinet power button does absolutely nothing, but motherboard standby LED is lit",
+            "Front panel power switch wire came loose after cleaning dust or moving the desktop tower"
+        ],
+        co_occurrence_patterns=[
+            ["power button", "nothing"],
+            ["front panel", "power"],
+            ["button", "wont turn on"]
+        ]
+    ),
+
+    # 7. Depleted CMOS Battery / BIOS Clock Reset
+    FaultRule(
+        fault_id="DESKTOP_CMOS_BATTERY_FAILURE",
+        title="Depleted CR2032 CMOS Battery (BIOS Reset / System Clock Desync)",
+        severity="LOW",
+        complexity="Low (Beginner)",
+        recommendation="REPAIR (DIY)",
+        rationale="A standard 3V CR2032 coin cell costs ₹30-₹60 and fixes persistent BIOS reset, boot prompt warnings, and system time loss.",
+        required_tools=["New CR2032 3V Coin Battery", "Small Flathead Screwdriver / Plastic Tool"],
+        estimated_cost="₹30 - ₹100 ($1 - $2)",
+        estimated_time="5 - 10 minutes",
+        safety_warnings=[
+            "Unplug AC mains power before removing or inserting coin battery."
+        ],
+        safe_checks=[
+            "1. Check if the PC prompts 'CMOS checksum error - Defaults loaded' or 'Press F1 to Run SETUP' on cold boot.",
+            "2. Check if the Windows / OS system clock consistently resets to 12:00 AM or a past year when unplugged from the wall."
+        ],
+        advanced_steps=[
+            "1. Power off, unplug AC power cord, and remove side panel.",
+            "2. Locate the shiny silver round CR2032 battery holder on the motherboard (often between PCIe slots).",
+            "3. Press the small metal retaining clip outward to pop the old battery out.",
+            "4. Insert a fresh CR2032 battery with the '+' positive side facing up, press until it clicks into place, and configure BIOS date/time."
+        ],
+        positive_keywords=[
+            "cmos battery", "cmos checksum error", "bios reset", "clock resets",
+            "time resets", "press f1 to continue", "cr2032", "bios settings reset"
+        ],
+        negative_keywords=["smoke", "liquid", "fire"],
+        common_symptoms=[
+            "System prompts 'CMOS Checksum Bad' or 'Press F1 to enter setup' every time wall switch is turned off",
+            "Windows date and time repeatedly reverts to a past year on startup"
+        ],
+        co_occurrence_patterns=[
+            ["cmos", "error"],
+            ["bios", "reset"],
+            ["clock", "resets"]
+        ]
+    ),
+
+    # 8. Motherboard Short Circuit / Stand-off Grounding / Power Surge (CRITICAL)
+    FaultRule(
+        fault_id="DESKTOP_MOTHERBOARD_SHORT_SURGE",
+        title="Motherboard Grounding Short / Standoff Misplacement / Power Surge Damage",
+        severity="CRITICAL",
+        complexity="Dangerous (Do Not DIY)",
+        recommendation="SERVICE (Professional)",
+        rationale="Electrical surges or stray brass stand-offs touching PCB traces cause ground shorts, blown VRM MOSFETs, and power delivery failures.",
+        required_tools=["Bench Power Supply", "Multimeter with Micro-probes", "ESD Mat"],
+        estimated_cost="₹2,500 - ₹8,000 ($30 - $100)",
+        estimated_time="2 - 4 business days",
+        safety_warnings=[
+            "CRITICAL ELECTRICAL & FIRE HAZARD: Do not repeatedly power on the desktop if a burnt smell, spark, or short circuit is suspected.",
+            "Unplug the AC power cord immediately from the wall outlet."
+        ],
+        safe_checks=[
+            "1. Immediately disconnect AC power cord from the wall outlet and do not force power-on.",
+            "2. Inspect the motherboard PCB for burnt components, blackened traces, or swollen cylindrical capacitors.",
+            "3. Smell around the CPU socket VRM heatsinks and power connectors for burnt electrical odor."
+        ],
+        advanced_steps=[],  # EMPTY: CRITICAL / SERVICE-only rule
+        positive_keywords=[
+            "desktop spark", "motherboard burnt", "burnt smell pc", "smoke from pc",
+            "motherboard short", "spark from desktop", "tripped breaker desktop"
+        ],
+        negative_keywords=[],
+        common_symptoms=[
+            "Burnt electrical smell or smoke emitted from desktop motherboard or graphics card",
+            "Sparks seen near motherboard VRM or ATX 24-pin connector",
+            "Desktop tripped the room circuit breaker when turned on"
+        ],
+        co_occurrence_patterns=[
+            ["spark", "pc"],
+            ["burnt", "motherboard"],
+            ["smoke", "desktop"],
+            ["short", "motherboard"]
+        ]
+    ),
+]
+
 # ===========================================================================
 # DEVICE REGISTRY (Extensible dict: device_name -> rule_list)
 # ===========================================================================
 
 DEVICE_REGISTRY: Dict[str, List[FaultRule]] = {
-    "laptop": LAPTOP_RULES
+    "laptop": LAPTOP_RULES,
+    "desktop": DESKTOP_RULES,
 }
 registry = DEVICE_REGISTRY
 
@@ -500,10 +856,21 @@ def get_canonical_device(raw_device: str) -> Optional[str]:
 # Aliases mapping to registry keys
 DEVICE_ALIASES: Dict[str, str] = {
     "laptop": "laptop",
-    "pc": "laptop",
     "notebook": "laptop",
+    "macbook": "laptop",
+    "laptop computer": "laptop",
+    "desktop": "desktop",
+    "desktop pc": "desktop",
+    "pc": "desktop",
+    "tower": "desktop",
+    "rig": "desktop",
+    "desktop computer": "desktop",
     "computer": "laptop",
-    "laptop computer": "laptop"
+}
+
+DESKTOP_COMPONENT_TERMS = {
+    "psu", "power supply", "atx", "gpu", "graphics card", "pcie", "dimm",
+    "desktop", "tower", "cabinet", "pc case", "chassis", "cpu cooler",
 }
 
 # Component names that the Roboflow model may return (all map to laptop)
@@ -532,6 +899,7 @@ HARD_HAZARD_FAULT_IDS = frozenset({
     "LAPTOP_LIQUID_SPILL",
     "LAPTOP_SWOLLEN_BATTERY",
     "LAPTOP_MOTHERBOARD_SURGE_POWER_FAILURE",
+    "DESKTOP_MOTHERBOARD_SHORT_SURGE",
 })
 
 
@@ -688,10 +1056,12 @@ class FaultDiagnosisEngine:
         self.kb = self.registry
 
     def normalize_device_name(self, raw_device: str) -> str:
-        """Map YOLO detections or user labels to canonical device categories."""
+        """Map detections or user labels to canonical device categories."""
         raw = " ".join(str(raw_device).strip().lower().replace("_", " ").split())
         if raw in DEVICE_ALIASES:
             return DEVICE_ALIASES[raw]
+        if raw in DESKTOP_COMPONENT_TERMS or any(term in raw for term in DESKTOP_COMPONENT_TERMS):
+            return "desktop"
         if raw in LAPTOP_COMPONENT_TERMS or any(term in raw for term in LAPTOP_COMPONENT_TERMS):
             return "laptop"
         return raw
@@ -1138,17 +1508,49 @@ Return ONLY valid JSON with this exact schema:
         result["requires_professional_attention"] = requires_pro
         result["supported"] = True
 
+        # Run Evidence-Based Root Cause Analysis
+        evidence_analysis = None
+        if EvidenceDiagnosisEngine is not None:
+            ev_engine = EvidenceDiagnosisEngine()
+            evidence_analysis = ev_engine.analyze_evidence(
+                device_type=canonical_device,
+                rules=self.registry.get(canonical_device, []),
+                free_text=free_text,
+                answers=answers,
+                hardware_profile=result.get("hardware_profile"),
+                cv_result=result.get("cv_analysis"),
+                imported_specs=result.get("imported_specs"),
+                test_results=result.get("test_results")
+            )
+
+        # Categorical confidence calculation
+        conf_category = "Inconclusive"
+        ranked_hyps = []
+        contradictions = []
+        ev_items = []
+        if evidence_analysis:
+            ranked_hyps = evidence_analysis.get("ranked_hypotheses", [])
+            contradictions = evidence_analysis.get("contradictions", [])
+            ev_items = evidence_analysis.get("evidence_items", [])
+            if ranked_hyps:
+                conf_category = ranked_hyps[0].get("confidence_category", "Possible")
+
         result["diagnosis"] = {
             "primary_fault": primary["fault_title"],
             "fault_id": primary["fault_id"],
             "confidence": _displayed_confidence(primary["confidence_score"], primary["fault_id"]),
+            "confidence_category": conf_category,
             "severity": primary["severity"],
             "supporting_evidence": primary["supporting_evidence"] + safety_eval["safety_reasons"],
+            "contradicting_evidence": [c for c in contradictions],
+            "missing_evidence": ranked_hyps[0].get("missing_evidence", []) if ranked_hyps else [],
             "safe_checks": safe_checks,
             "advanced_steps": advanced_steps,
             "safety_instructions": safety_instructions,
             "troubleshooting_steps": troubleshooting_steps,
             "secondary_faults": alternatives,
+            "ranked_hypotheses": ranked_hyps,
+            "evidence_analysis": evidence_analysis,
         }
 
         result["repair_recommendation"] = {

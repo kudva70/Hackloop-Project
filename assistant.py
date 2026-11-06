@@ -1,12 +1,13 @@
 """Integrated Repair Before Replace pipeline.
 
 Run: python assistant.py --image "images/laptop.jpg"
-Combines object detection, OpenCV visual heuristics, questionnaire diagnosis,
-rule-based repair-vs-replace decision, and a plain-language explanation.
+Combines object detection, OpenCV visual heuristics, hardware inventory profiling,
+questionnaire diagnosis, rule-based repair-vs-replace decision, and a plain-language explanation.
 """
 from pathlib import Path
 from datetime import datetime
 import argparse, json, sys
+from typing import Optional, List, Dict, Any
 
 try:
     from dotenv import load_dotenv
@@ -40,14 +41,16 @@ DEMO_SCRIPTED_ANSWERS = {
 }
 
 
-def choose_device():
-    supported = ["laptop"]
+def choose_device() -> str:
+    supported = ["laptop", "desktop"]
     print("\nSelect the computer device to diagnose:")
-    for i, device in enumerate(supported, 1):
-        print(f"  {i}. {device.title()}")
-    choice = input("\nEnter a number or device name: ").strip()
-    if choice.isdigit() and 1 <= int(choice) <= len(supported):
-        return supported[int(choice) - 1]
+    print("  1. Laptop / Notebook")
+    print("  2. Desktop PC / Tower")
+    choice = input("\nEnter a number or device name: ").strip().lower()
+    if choice in ("1", "laptop", "notebook"):
+        return "laptop"
+    if choice in ("2", "desktop", "desktop pc", "pc", "tower"):
+        return "desktop"
     return normalize_device(choice)
 
 
@@ -121,12 +124,20 @@ def make_detection_payload(image_path=None, device_type=None, detection_result=N
     components = [str(d.get("device", "")).strip() for d in detections]
     components = [item for item in components if item]
     confidence = max((float(d.get("confidence", 0)) for d in detections), default=None)
-    return {
+    payload = {
         "device_type": device_type or (detection_result or {}).get("device_type"),
         "findings": components,
         "confidence": confidence,
         "image_path": str(image_path) if image_path else None,
     }
+    if detection_result:
+        if detection_result.get("hardware_profile"):
+            payload["hardware_profile"] = detection_result["hardware_profile"]
+        if detection_result.get("cabinet_status"):
+            payload["cabinet_status"] = detection_result["cabinet_status"]
+        if detection_result.get("close_up_requests"):
+            payload["close_up_requests"] = detection_result["close_up_requests"]
+    return payload
 
 
 def adapt_report_for_verdict(report):
@@ -174,13 +185,118 @@ def print_report(report):
     decision = report.get("repair_decision") or {}
     visual = report.get("visual_analysis") or {}
     explanation = report.get("explanation") or {}
+    hw = report.get("hardware_profile")
+
     print("\n" + "=" * 72)
     print(f"REPAIR ASSESSMENT: {report.get('device_type', 'unknown').upper()}")
     print("=" * 72)
-    print(f"Possible fault       : {diagnosis.get('primary_fault', 'Not available')}")
+
+    # Hardware Intelligence / Inventory Overview
+    if hw:
+        print("\nHARDWARE INVENTORY & SCAN RESULTS")
+        print(f"  Chassis/Cabinet View : {hw.get('cabinet_status', 'UNKNOWN')}")
+        comps = hw.get("components", {})
+        detected = [c for c in comps.values() if c.get("visibility_status") == "DETECTED"]
+        partial = [c for c in comps.values() if c.get("visibility_status") == "PARTIALLY_VISIBLE"]
+        uncertain = [c for c in comps.values() if c.get("visibility_status") == "UNCERTAIN"]
+        if detected:
+            print("  Confirmed Visible    :")
+            for c in detected:
+                conf_str = f" ({c['confidence']:.0%})" if c.get("confidence") is not None else ""
+                print(f"    * {c['component_name']}{conf_str}")
+        if partial:
+            print("  Partially Visible    :")
+            for c in partial:
+                print(f"    * {c['component_name']} - Partially occluded/clipped")
+        if uncertain:
+            print("  Uncertain / Low Conf :")
+            for c in uncertain:
+                print(f"    * {c['component_name']} ({c['confidence']:.0%})")
+        close_ups = report.get("close_up_requests") or hw.get("close_up_requests", [])
+        if close_ups:
+            print("\n  [CLOSE-UP PHOTOGRAPH REQUESTS]")
+            for req in close_ups:
+                print(f"    ! {req}")
+
+    # Imported Hardware Specifications & Data-Source Separation
+    imported_specs = report.get("imported_specs")
+    conflicts = report.get("specs_conflicts") or []
+    sanitized = report.get("specs_sanitized_fields") or []
+
+    if imported_specs and not all(v is None for k, v in imported_specs.items() if k not in ("source_format", "source_filename", "sanitized_fields", "raw_metadata", "parsing_warnings")):
+        print("\nIMPORTED HARDWARE SPECIFICATIONS (Report Provenance)")
+        fmt = imported_specs.get("source_format", "unknown").upper()
+        fname = f" ({imported_specs.get('source_filename')})" if imported_specs.get('source_filename') else ""
+        print(f"  Report Source        : {fmt}{fname}")
+        if imported_specs.get("os_name"):
+            print(f"  Operating System     : {imported_specs.get('os_name')} {imported_specs.get('os_version') or ''}".strip())
+        if imported_specs.get("cpu_model"):
+            if imported_specs.get("cpu_cores") and imported_specs.get("cpu_threads"):
+                cores = f" ({imported_specs['cpu_cores']} cores / {imported_specs['cpu_threads']} threads)"
+            elif imported_specs.get("cpu_cores"):
+                cores = f" ({imported_specs['cpu_cores']} cores)"
+            else:
+                cores = ""
+            print(f"  Processor (CPU)      : {imported_specs.get('cpu_model')}{cores}")
+        if imported_specs.get("gpu_model"):
+            print(f"  Graphics (GPU)       : {imported_specs.get('gpu_model')}")
+        if imported_specs.get("ram_total_gb") is not None:
+            cfg = f" ({imported_specs['ram_configuration']})" if imported_specs.get("ram_configuration") else ""
+            print(f"  Installed RAM        : {imported_specs['ram_total_gb']} GB{cfg}")
+        if imported_specs.get("motherboard_model"):
+            m_model = imported_specs.get("motherboard_model")
+            m_mfg = imported_specs.get("motherboard_manufacturer") or ""
+            mobo_str = m_model if m_mfg.lower() in m_model.lower() else f"{m_mfg} {m_model}".strip()
+            print(f"  Motherboard          : {mobo_str}")
+        if imported_specs.get("storage_summary") or imported_specs.get("storage_devices"):
+            s_sum = imported_specs.get("storage_summary") or ", ".join([d.get("model", "Drive") for d in imported_specs.get("storage_devices", [])])
+            print(f"  Storage Devices      : {s_sum}")
+        if sanitized:
+            print(f"  Sanitized Fields     : {', '.join(sanitized)}")
+
+    if conflicts:
+        print("\n[!] DATA-SOURCE CONFLICTS DETECTED (Requires Review)")
+        for conf in conflicts:
+            msg = conf.get("conflict_message") or conf.get("conflict") or str(conf)
+            print(f"  * {msg}")
+
+    # Evidence-Based Root Cause Analysis Display
+    ev_analysis = diagnosis.get("evidence_analysis") or {}
+    ranked_hyps = diagnosis.get("ranked_hypotheses") or ev_analysis.get("ranked_hypotheses") or []
+    contradictions = ev_analysis.get("contradictions") or diagnosis.get("contradicting_evidence") or []
+    
+    if ranked_hyps:
+        print("\nROOT-CAUSE HYPOTHESES & EVIDENCE RANKING")
+        for idx, hyp in enumerate(ranked_hyps[:3], 1):
+            category = hyp.get("confidence_category", "Possible")
+            print(f"  [{idx}] {hyp.get('fault_name')} (Confidence: {category})")
+            sups = hyp.get("supporting_evidence", [])
+            if sups:
+                print("      Supporting Evidence:")
+                for s in sups[:2]:
+                    s_desc = s.get("description", str(s)) if isinstance(s, dict) else str(s)
+                    print(f"        + {s_desc}")
+            miss = hyp.get("missing_evidence", [])
+            if miss:
+                print(f"      Missing Evidence: {miss[0]}")
+            if hyp.get("recommended_next_check"):
+                print(f"      Next Check      : {hyp['recommended_next_check']}")
+
+    if contradictions:
+        print("\n[!] EVIDENCE CONTRADICTIONS DETECTED (Clarification Recommended)")
+        for c in contradictions:
+            if isinstance(c, dict):
+                print(f"  * {c.get('explanation', '')}")
+                if c.get("clarification_question"):
+                    print(f"    -> Action: {c['clarification_question']}")
+
+    print(f"\nPrimary Diagnosis    : {diagnosis.get('primary_fault', 'Not available')}")
+    cat = diagnosis.get("confidence_category")
+    if cat:
+        print(f"Confidence Category  : {cat}")
     conf = diagnosis.get("confidence")
     if isinstance(conf, (int, float)):
-        print(f"Diagnosis confidence : {conf:.0%}")
+        print(f"Calibrated Confidence: {conf:.0%}")
     print(f"Severity             : {diagnosis.get('severity', 'Not specified')}")
     print(f"Repair complexity    : {recommendation.get('complexity', 'Not specified')}")
     print(f"Fault-engine action  : {recommendation.get('action', 'Not available')}")
@@ -190,6 +306,17 @@ def print_report(report):
     print(f"  Verdict            : >>> {decision.get('verdict', 'Not available')} <<<")
     if decision.get("low_confidence"):
         print("  [!] LOW-CONFIDENCE NOTICE: Repair cost could not be parsed or diagnosis is inconclusive.")
+    
+    # Detailed Cost Breakdown
+    cost_est = decision.get("cost_estimate")
+    if cost_est:
+        parts_range = f"Rs {cost_est['parts_cost_min']:,} - Rs {cost_est['parts_cost_max']:,}"
+        labour_range = f"Rs {cost_est['labour_cost_min']:,} - Rs {cost_est['labour_cost_max']:,}" if not cost_est.get("is_diy") else "Rs 0 (DIY)"
+        total_range = f"Rs {cost_est['total_repair_min']:,} - Rs {cost_est['total_repair_max']:,}"
+        print(f"  Estimated Parts Cost : {parts_range}")
+        print(f"  Estimated Labour Fee : {labour_range}")
+        print(f"  Total Repair Estimate: {total_range}")
+
     replacement = decision.get('replacement_cost')
     print(f"  Replacement price  : Rs {replacement:,.0f}" if replacement is not None else "  Replacement price  : Not available")
     if decision.get("estimated_saving") is not None:
@@ -270,20 +397,63 @@ def save_report(report, source_name="manual"):
     return output_path
 
 
-def run_pipeline(image_path=None, device_type=None, confidence=0.25, age_years=None,
-                 replacement_cost=None, gemma_backend="auto", enable_second_opinion=False,
-                 video_path=None, describe=None, demo=False, skip_prompts=False):
+def run_pipeline(
+    image_path=None,
+    device_type=None,
+    confidence=0.25,
+    age_years=None,
+    replacement_cost=None,
+    gemma_backend="auto",
+    enable_second_opinion=False,
+    video_path=None,
+    describe=None,
+    demo=False,
+    skip_prompts=False,
+    image_paths=None,
+    specs_file=None,
+    specs_text=None,
+):
     print("\n" + "=" * 72 + "\n REPAIR BEFORE REPLACE - INTEGRATED PIPELINE\n" + "=" * 72)
     if demo:
         describe = DEMO_DESCRIPTION
         gemma_backend = "template"
         image_path = None
+        image_paths = None
         video_path = None
         enable_second_opinion = False
 
-    source_image = Path(image_path).expanduser().resolve() if image_path else None
-    if source_image and not source_image.is_file():
-        raise FileNotFoundError(f"Image file not found: {source_image}")
+    # Parse optional hardware specification report
+    parsed_specs = None
+    if specs_file:
+        try:
+            print(f"\n[Hardware Specs] Parsing specifications file: {Path(specs_file).name}...")
+            import specs_parser
+            parsed_specs = specs_parser.parse_hardware_report_file(specs_file)
+        except Exception as exc:
+            print(f"[WARNING] Failed to parse hardware specs report file: {exc}")
+    elif specs_text and str(specs_text).strip():
+        try:
+            print("\n[Hardware Specs] Parsing uploaded specifications text...")
+            import specs_parser
+            parsed_specs = specs_parser.parse_hardware_report(specs_text)
+        except Exception as exc:
+            print(f"[WARNING] Failed to parse hardware specs report text: {exc}")
+
+    all_images = []
+    if image_paths:
+        for p in image_paths:
+            if p:
+                img_p = Path(p).expanduser().resolve()
+                if not img_p.is_file():
+                    raise FileNotFoundError(f"Image file not found: {img_p}")
+                all_images.append(img_p)
+    elif image_path:
+        source_image = Path(image_path).expanduser().resolve()
+        if not source_image.is_file():
+            raise FileNotFoundError(f"Image file not found: {source_image}")
+        all_images.append(source_image)
+
+    source_image = all_images[0] if all_images else None
     source_video = Path(video_path).expanduser().resolve() if video_path else None
     if source_video and not source_video.is_file():
         raise FileNotFoundError(f"Video file not found: {source_video}")
@@ -315,20 +485,60 @@ def run_pipeline(image_path=None, device_type=None, confidence=0.25, age_years=N
             except Exception as exc:
                 print(f"[WARNING] OpenCV analysis failed: {exc}")
         cv_result = merge_cv_results(cv_parts)
-    elif source_image:
-        print(f"\n[1/5] Detecting device/components in {source_image.name}...")
+    elif all_images:
+        print(f"\n[1/5] Scanning hardware components across {len(all_images)} photograph(s)...")
         try:
-            detection_result = detect_new.detect_image(str(source_image), conf=confidence)
+            if len(all_images) == 1:
+                detection_result = detect_new.detect_image(str(all_images[0]), conf=confidence, device_type=device_type)
+            else:
+                detection_result = detect_new.analyze_hardware_images(
+                    [str(p) for p in all_images], device_type=device_type, conf=confidence
+                )
         except Exception as exc:
             print(f"[WARNING] Object detection failed: {exc}\n          Will continue with manual device selection if needed.")
+            detection_result = {"detections": [], "device_type": device_type}
+
         print("[2/5] Analyzing visible damage and photo quality with OpenCV...")
-        try:
-            crop_box = _crop_box_from_detections((detection_result or {}).get("detections", []))
-            cv_result = cv_analysis.analyze_image(str(source_image), crop_box=crop_box)
-        except Exception as exc:
-            print(f"[WARNING] OpenCV analysis failed: {exc}")
+        cv_parts = []
+        for img_p in all_images:
+            try:
+                crop_box = _crop_box_from_detections((detection_result or {}).get("detections", []))
+                cv_parts.append(cv_analysis.analyze_image(str(img_p), crop_box=crop_box))
+            except Exception as exc:
+                print(f"[WARNING] OpenCV analysis failed on {img_p.name}: {exc}")
+        cv_result = merge_cv_results(cv_parts)
     else:
         print("\n[1/5] No image supplied; image-based checks are skipped.")
+
+    # Synchronize visual findings and imported specs with HardwareProfile
+    from hardware_profile import HardwareProfile
+    profile = None
+    if detection_result and detection_result.get("hardware_profile"):
+        raw_hp = detection_result["hardware_profile"]
+        if isinstance(raw_hp, dict):
+            profile = HardwareProfile.from_dict(raw_hp)
+        elif isinstance(raw_hp, HardwareProfile):
+            profile = raw_hp
+
+    if parsed_specs:
+        target_dev = device_type or parsed_specs.system_type or "unknown"
+        if profile is None:
+            profile = HardwareProfile(device_type=target_dev)
+
+        profile.import_specs(parsed_specs)
+
+        if not device_type and profile.device_type != "unknown":
+            device_type = profile.device_type
+
+        if detection_result is None:
+            detection_result = {
+                "detections": [],
+                "device_type": device_type,
+                "findings": profile.summary_findings(),
+            }
+        detection_result["hardware_profile"] = profile.to_dict()
+        detection_result["cabinet_status"] = profile.cabinet_status
+        detection_result["close_up_requests"] = profile.get_close_up_requests()
 
     payload = make_detection_payload(source_image, device_type, detection_result)
     if cv_result and cv_result.get("follow_up_question"):
@@ -339,7 +549,7 @@ def run_pipeline(image_path=None, device_type=None, confidence=0.25, age_years=N
         if demo or describe:
             payload["device_type"] = device_type or "laptop"
         elif payload["findings"]:
-            payload["device_type"] = "laptop"
+            payload["device_type"] = device_type or "laptop"
         else:
             payload["device_type"] = device_type or ("laptop" if skip_prompts else choose_device())
     if cv_result:
@@ -360,7 +570,10 @@ def run_pipeline(image_path=None, device_type=None, confidence=0.25, age_years=N
         payload["safety_alert"] = True
 
     print("\n[3/5] Collecting symptoms and running diagnosis...")
-    # When a hard hazard is found or running via non-interactive web API, skip prompts
+    if cv_result:
+        payload["cv_analysis"] = cv_result
+    if parsed_specs:
+        payload["imported_specs"] = parsed_specs.to_dict() if hasattr(parsed_specs, "to_dict") else parsed_specs
     report = run_questionnaire(
         payload,
         image_path=str(source_image) if source_image else None,
@@ -393,6 +606,13 @@ def run_pipeline(image_path=None, device_type=None, confidence=0.25, age_years=N
     report["repair_decision"] = decision
     report["visual_analysis"] = cv_result
     report["input_image"] = str(source_image) if source_image else None
+    report["input_images"] = [str(p) for p in all_images] if all_images else []
+    report["hardware_profile"] = (detection_result or {}).get("hardware_profile")
+    report["cabinet_status"] = (detection_result or {}).get("cabinet_status")
+    report["close_up_requests"] = (detection_result or {}).get("close_up_requests", [])
+    report["imported_specs"] = parsed_specs.to_dict() if parsed_specs else None
+    report["specs_conflicts"] = profile.specs_conflicts if profile else []
+    report["specs_sanitized_fields"] = parsed_specs.sanitized_fields if parsed_specs else []
     report["decision_inputs"] = {"device_age_years": age_years,
                                   "replacement_cost_override_inr": replacement_cost}
 
@@ -420,23 +640,26 @@ def run_pipeline(image_path=None, device_type=None, confidence=0.25, age_years=N
 
 def main():
     parser = argparse.ArgumentParser(description="Integrated Repair Before Replace assistant")
-    parser.add_argument("--image", "-i", help="Path to a device image (optional)")
+    parser.add_argument("--image", "-i", help="Path to a single device image (optional)")
+    parser.add_argument("--images", nargs="+", help="Paths to one or more computer photographs (optional)")
     parser.add_argument("--video", help="Path to a device video (optional)")
     parser.add_argument("--describe", help="Free-text symptom description (optional)")
     parser.add_argument("--demo", action="store_true", help="Offline non-interactive sample run")
-    parser.add_argument("--device", "-d", help="Computer device type (currently laptop/PC only)")
+    parser.add_argument("--device", "-d", choices=["laptop", "desktop"], help="Computer device type (laptop or desktop)")
     parser.add_argument("--confidence", type=float, default=0.25, help="Object-detection confidence threshold")
     parser.add_argument("--age", type=float, help="Device age in years")
     parser.add_argument("--replacement-cost", type=float, help="Replacement price in INR")
     parser.add_argument("--gemma-backend", choices=["auto", "ollama", "api", "template"], default="auto")
     parser.add_argument("--second-opinion", action="store_true", help="Add a separate Gemma visual description")
+    parser.add_argument("--specs", "--report", dest="specs", help="Path to a hardware specification report (.txt, .json, .csv, .html) (optional)")
+    parser.add_argument("--specs-text", help="Raw hardware specifications text (optional)")
     args = parser.parse_args()
 
     describe = args.describe
     age_years = args.age
     replacement_cost = args.replacement_cost
     if not args.demo:
-        if not args.image and not args.video and describe is None:
+        if not args.image and not args.images and not args.video and describe is None:
             describe = _prompt_optional("Optional symptom description (Enter to skip): ", demo=False)
         if age_years is None:
             age_years = _parse_optional_float(
@@ -449,13 +672,24 @@ def main():
 
     try:
         run_pipeline(
-            args.image, args.device, args.confidence, age_years, replacement_cost,
-            args.gemma_backend, args.second_opinion,
-            video_path=args.video, describe=describe, demo=args.demo,
+            image_path=args.image,
+            device_type=args.device,
+            confidence=args.confidence,
+            age_years=age_years,
+            replacement_cost=replacement_cost,
+            gemma_backend=args.gemma_backend,
+            enable_second_opinion=args.second_opinion,
+            video_path=args.video,
+            describe=describe,
+            demo=args.demo,
+            image_paths=args.images,
+            specs_file=args.specs,
+            specs_text=args.specs_text,
         )
     except (FileNotFoundError, ValueError) as exc:
         print(f"[ERROR] {exc}", file=sys.stderr)
         raise SystemExit(1)
+
 
 if __name__ == "__main__":
     main()

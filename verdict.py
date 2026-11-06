@@ -8,27 +8,29 @@ Outputs exactly three canonical verdicts:
   2. "SERVICE (technician)"
   3. "REPLACE (device)"
 
-Distinguishes part replacement (e.g. replacing an LCD panel or battery) from whole-device replacement.
+Distinguishes part replacement (e.g. replacing an LCD panel, PSU, or battery) from whole-device replacement.
 All cost/lifespan defaults are transparent assumptions (INR) that the user can override.
 """
 
 from typing import Dict, Any, Optional, Tuple, List
 import re
 
+try:
+    from cost_estimator import CostEstimator, CostEstimate
+except ImportError:
+    CostEstimator = None
+    CostEstimate = None
+
 DEVICE_DEFAULTS = {            # replacement_cost in INR, life in years (assumptions)
     "laptop":      {"replacement_cost": 45000, "life_years": 5},
-    "fan":         {"replacement_cost": 2500,  "life_years": 10},
-    "bulb":        {"replacement_cost": 150,   "life_years": 3},
-    "switchboard": {"replacement_cost": 900,   "life_years": 15},
+    "desktop":     {"replacement_cost": 55000, "life_years": 7},
 }
-GENERIC = {"replacement_cost": 5000, "life_years": 6}
+GENERIC = {"replacement_cost": 45000, "life_years": 5}
 
 # Typical device weight in kilograms (assumption, editable)
 DEVICE_MASS_KG = {
     "laptop": 2.1,      # Average notebook/laptop mass
-    "fan": 3.5,         # Ceiling / table fan
-    "bulb": 0.1,        # LED bulb
-    "switchboard": 0.3, # Switchboard assembly
+    "desktop": 9.5,     # Average desktop mid-tower cabinet & internal mass
 }
 DEFAULT_DEVICE_MASS_KG = 2.0
 
@@ -80,11 +82,33 @@ def decide(
     ratio = mid / replacement if mid is not None else None
     life_used = (age_years / life_years) if age_years is not None else None
 
-    # Hard safety overrides: CRITICAL severity, swollen battery, or liquid spill always gives SERVICE
+    # Check safety hazards: swollen battery, smoke, sparks, burning smells, liquid damage, dangerous PSU
+    hazard_indicators = [
+        "smoke", "spark", "burning", "burnt", "shock", "swollen", "bulging",
+        "liquid", "spill", "water", "wet", "hot to touch", "smell", "pop"
+    ]
+    
+    # Check free text and symptoms
+    findings_str = " ".join([str(f.get("detail", "")) for f in (cv_result or {}).get("findings", [])]).lower()
+    symptoms_str = str(report.get("user_symptoms", "")).lower() + " " + findings_str
+    has_hazard_keyword = any(h in symptoms_str for h in hazard_indicators)
+
+    # Specific dangerous PSU / electrical failure rules
+    psu_danger = (
+        "psu" in fault_id.lower() and ("surge" in symptoms_str or "smoke" in symptoms_str or "spark" in symptoms_str or "pop" in symptoms_str or "smell" in symptoms_str)
+    )
+
+    # Hard safety overrides: CRITICAL severity, swollen battery, liquid spill, or dangerous electrical/PSU fault
     is_critical = (
         severity == "CRITICAL"
         or "critical" in severity.lower()
-        or fault_id in ("LAPTOP_SWOLLEN_BATTERY", "LAPTOP_LIQUID_SPILL", "LAPTOP_MOTHERBOARD_SURGE_POWER_FAILURE")
+        or fault_id in (
+            "LAPTOP_SWOLLEN_BATTERY", "LAPTOP_LIQUID_SPILL", 
+            "LAPTOP_MOTHERBOARD_SURGE_POWER_FAILURE", "DESKTOP_MOTHERBOARD_SHORT_SURGE",
+            "DESKTOP_PSU_FAILURE"
+        )
+        or has_hazard_keyword
+        or psu_danger
     )
     safety_hold = (
         is_critical
@@ -127,7 +151,7 @@ def decide(
             reasons.append(f"Repair is clearly cheaper than replacing the entire device (estimated saving: {_inr(replacement - mid)}).")
             # Distinguish part replacement from whole device replacement
             if "replace" in rec:
-                reasons.append(f"Note: Resolving this issue involves replacing a specific component ({primary.get('fault_title', 'faulty part')}), which preserves the laptop at a fraction of replacement cost.")
+                reasons.append(f"Note: Resolving this issue involves replacing a specific component ({primary.get('fault_title', 'faulty part')}), which preserves the computer at a fraction of replacement cost.")
     else:
         # Cost not parsed / inconclusive
         needs_pro = ("service" in rec or "professional" in rec or "technician" in rec
@@ -211,11 +235,24 @@ def decide(
             "summary": "Recycling advice: Hand over to an authorized e-waste recycler (do not bin); wipe personal data from storage (estimate).",
         }
 
+    # Comprehensive cost estimate breakdown (parts, labour, replacement)
+    cost_estimate = None
+    if CostEstimator is not None:
+        cost_estimate = CostEstimator.estimate_repair_cost(
+            device_type=dev_key,
+            parts_cost_text=primary.get("estimated_parts_cost"),
+            repair_complexity=primary.get("repair_complexity", "Moderate"),
+            recommendation=primary.get("recommendation", rec),
+            component_name=primary.get("fault_title"),
+            custom_replacement_price=replacement
+        ).to_dict()
+
     return {
         "verdict": verdict,
         "safety_hold": safety_hold,
         "low_confidence": low_confidence,
         "repair_cost_range": [low, high],
+        "cost_estimate": cost_estimate,
         "replacement_cost": replacement,
         "cost_ratio": round(ratio, 3) if ratio is not None else None,
         "estimated_saving": saving,

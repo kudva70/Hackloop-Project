@@ -1,0 +1,975 @@
+{
+  "status": "success",
+  "module": "adaptive_questionnaire",
+  "device_type": "desktop",
+  "detected_findings": [],
+  "detection_confidence": null,
+  "image_path": null,
+  "answers": {
+    "affected_component": "Screen / display",
+    "power_state": "Lights/fan turn on but no display",
+    "startup_signals": "No",
+    "memory_storage": "Not sure / not applicable",
+    "display": "Black screen",
+    "temperature": "Not sure",
+    "charging": "Works normally"
+  },
+  "text_responses": {},
+  "free_text": "laptop turns on but black screen, fan spins",
+  "safety_alert": false,
+  "requires_professional_attention": false,
+  "safety_reasons": [],
+  "contradictions": [],
+  "created_at": "2026-11-06T15:13:11.044893+00:00",
+  "supported": true,
+  "diagnosis": {
+    "primary_fault": "Inconclusive - professional inspection recommended",
+    "fault_id": "INCONCLUSIVE_INSPECTION_RECOMMENDED",
+    "confidence": 0.15,
+    "confidence_category": "Strongly supported",
+    "severity": "LOW",
+    "supporting_evidence": [
+      "Reported symptoms did not match specific component failure patterns."
+    ],
+    "contradicting_evidence": [],
+    "missing_evidence": [],
+    "safe_checks": [
+      "1. Verify that the power adapter is properly plugged into a known working wall outlet.",
+      "2. Disconnect all external USB accessories, monitors, and docks, then test.",
+      "3. Clean exterior ventilation ports with a dry cloth."
+    ],
+    "advanced_steps": [],
+    "safety_instructions": [
+      "Do not force power-on if unusual smells, sounds, or excessive heat develop."
+    ],
+    "troubleshooting_steps": [
+      "1. Verify that the power adapter is properly plugged into a known working wall outlet.",
+      "2. Disconnect all external USB accessories, monitors, and docks, then test.",
+      "3. Clean exterior ventilation ports with a dry cloth.",
+      "4. Bring the device to a certified repair technician for physical diagnostic testing."
+    ],
+    "secondary_faults": [],
+    "ranked_hypotheses": [
+      {
+        "fault_id": "DESKTOP_GPU_SEATING_OR_PORT_MISMATCH",
+        "fault_name": "Monitor Cable in Motherboard Port / Unseated PCIe GPU / Missing PCIe Power",
+        "confidence_category": "Strongly supported",
+        "supporting_evidence": [
+          {
+            "evidence_id": "EV-USR-TXT-1",
+            "description": "Display / screen visual symptom reported in problem description: \"laptop turns on but black screen, fan spins\"",
+            "source": "user_reported",
+            "related_component": "display",
+            "evidence_type": "symptom",
+            "confidence_reliability": 0.75,
+            "verification_status": "unverified",
+            "polarity": "supporting",
+            "reference_id": "problem_description"
+          },
+          {
+            "evidence_id": "EV-USR-TXT-2",
+            "description": "Fan behavior symptom reported in problem description: \"laptop turns on but black screen, fan spins\"",
+            "source": "user_reported",
+            "related_component": "cooling_fan",
+            "evidence_type": "symptom",
+            "confidence_reliability": 0.75,
+            "verification_status": "unverified",
+            "polarity": "supporting",
+            "reference_id": "problem_description"
+          },
+          {
+            "evidence_id": "EV-USR-ANS-1",
+            "description": "Questionnaire response [affected_component]: Screen / display",
+            "source": "user_reported",
+            "related_component": "display",
+            "evidence_type": "symptom",
+            "confidence_reliability": 0.85,
+            "verification_status": "unverified",
+            "polarity": "supporting",
+            "reference_id": "affected_component"
+          },
+          {
+            "evidence_id": "EV-USR-ANS-2",
+            "description": "Questionnaire response [power_state]: Lights/fan turn on but no display",
+            "source": "user_reported",
+            "related_component": "display",
+            "evidence_type": "symptom",
+            "confidence_reliability": 0.85,
+            "verification_status": "unverified",
+            "polarity": "supporting",
+            "reference_id": "power_state"
+          },
+          {
+            "evidence_id": "EV-USR-ANS-3",
+            "description": "Questionnaire response [display]: Black screen",
+            "source": "user_reported",
+            "related_component": "display",
+            "evidence_type": "symptom",
+            "confidence_reliability": 0.85,
+            "verification_status": "unverified",
+            "polarity": "supporting",
+            "reference_id": "display"
+          }
+        ],
+        "contradicting_evidence": [],
+        "missing_evidence": [],
+        "recommended_next_check": "1. Inspect the back of the PC: ensure the monitor HDMI or DisplayPort cable is plugged into the HORIZONTAL graphics card ports, NOT the vertical motherboard ports near USB ports.",
+        "severity": "MEDIUM",
+        "repair_complexity": "Low (Beginner)",
+        "recommendation": "REPAIR (DIY)",
+        "estimated_cost": "₹0 ($0)",
+        "score": 4.05
+      },
+      {
+        "fault_id": "DESKTOP_RAM_CONTACT_POST_FAILURE",
+        "fault_name": "RAM Module Contact Oxidation / Unseated DIMM / POST Memory Error",
+        "confidence_category": "Strongly supported",
+        "supporting_evidence": [
+          {
+            "evidence_id": "EV-USR-TXT-1",
+            "description": "Display / screen visual symptom reported in problem description: \"laptop turns on but black screen, fan spins\"",
+            "source": "user_reported",
+            "related_component": "display",
+            "evidence_type": "symptom",
+            "confidence_reliability": 0.75,
+            "verification_status": "unverified",
+            "polarity": "supporting",
+            "reference_id": "problem_description"
+          },
+          {
+            "evidence_id": "EV-USR-ANS-1",
+            "description": "Questionnaire response [affected_component]: Screen / display",
+            "source": "user_reported",
+            "related_component": "display",
+            "evidence_type": "symptom",
+            "confidence_reliability": 0.85,
+            "verification_status": "unverified",
+            "polarity": "supporting",
+            "reference_id": "affected_component"
+          },
+          {
+            "evidence_id": "EV-USR-ANS-2",
+            "description": "Questionnaire response [power_state]: Lights/fan turn on but no display",
+            "source": "user_reported",
+            "related_component": "display",
+            "evidence_type": "symptom",
+            "confidence_reliability": 0.85,
+            "verification_status": "unverified",
+            "polarity": "supporting",
+            "reference_id": "power_state"
+          },
+          {
+            "evidence_id": "EV-USR-ANS-3",
+            "description": "Questionnaire response [display]: Black screen",
+            "source": "user_reported",
+            "related_component": "display",
+            "evidence_type": "symptom",
+            "confidence_reliability": 0.85,
+            "verification_status": "unverified",
+            "polarity": "supporting",
+            "reference_id": "display"
+          }
+        ],
+        "contradicting_evidence": [],
+        "missing_evidence": [
+          "Physical single-stick RAM test or contact eraser cleaning not yet performed"
+        ],
+        "recommended_next_check": "1. Observe motherboard EZ Debug LEDs (CPU, DRAM, VGA, BOOT): check if the 'DRAM' LED stays solid orange/amber.",
+        "severity": "MEDIUM",
+        "repair_complexity": "Low (Beginner)",
+        "recommendation": "REPAIR (DIY)",
+        "estimated_cost": "₹0 ($0)",
+        "score": 3.3000000000000003
+      },
+      {
+        "fault_id": "DESKTOP_PSU_POWER_FAILURE",
+        "fault_name": "Faulty ATX Power Supply Unit (PSU) / Dead Power Cable / Tripped Switch",
+        "confidence_category": "Strongly supported",
+        "supporting_evidence": [
+          {
+            "evidence_id": "EV-USR-TXT-1",
+            "description": "Display / screen visual symptom reported in problem description: \"laptop turns on but black screen, fan spins\"",
+            "source": "user_reported",
+            "related_component": "display",
+            "evidence_type": "symptom",
+            "confidence_reliability": 0.75,
+            "verification_status": "unverified",
+            "polarity": "supporting",
+            "reference_id": "problem_description"
+          },
+          {
+            "evidence_id": "EV-USR-TXT-2",
+            "description": "Fan behavior symptom reported in problem description: \"laptop turns on but black screen, fan spins\"",
+            "source": "user_reported",
+            "related_component": "cooling_fan",
+            "evidence_type": "symptom",
+            "confidence_reliability": 0.75,
+            "verification_status": "unverified",
+            "polarity": "supporting",
+            "reference_id": "problem_description"
+          },
+          {
+            "evidence_id": "EV-USR-ANS-2",
+            "description": "Questionnaire response [power_state]: Lights/fan turn on but no display",
+            "source": "user_reported",
+            "related_component": "display",
+            "evidence_type": "symptom",
+            "confidence_reliability": 0.85,
+            "verification_status": "unverified",
+            "polarity": "supporting",
+            "reference_id": "power_state"
+          }
+        ],
+        "contradicting_evidence": [],
+        "missing_evidence": [],
+        "recommended_next_check": "1. Verify the I/O rocker switch on the back of the PSU is toggled to the 'I' (ON) position.",
+        "severity": "MEDIUM",
+        "repair_complexity": "Medium (Intermediate)",
+        "recommendation": "REPAIR (DIY PSU Swap) / SERVICE (Professional)",
+        "estimated_cost": "₹1,800 - ₹5,500 ($22 - $65)",
+        "score": 2.35
+      },
+      {
+        "fault_id": "DESKTOP_FRONT_PANEL_POWER_SWITCH",
+        "fault_name": "Faulty Front Panel Power Button / Disconnected Motherboard Header Cable",
+        "confidence_category": "Possible",
+        "supporting_evidence": [
+          {
+            "evidence_id": "EV-USR-ANS-2",
+            "description": "Questionnaire response [power_state]: Lights/fan turn on but no display",
+            "source": "user_reported",
+            "related_component": "display",
+            "evidence_type": "symptom",
+            "confidence_reliability": 0.85,
+            "verification_status": "unverified",
+            "polarity": "supporting",
+            "reference_id": "power_state"
+          }
+        ],
+        "contradicting_evidence": [],
+        "missing_evidence": [],
+        "recommended_next_check": "1. Inspect the PC front/top panel: ensure the physical power button is not mechanically stuck or jammed in the depressed position.",
+        "severity": "LOW",
+        "repair_complexity": "Low (Beginner)",
+        "recommendation": "REPAIR (DIY)",
+        "estimated_cost": "₹0 - ₹200 ($0 - $3)",
+        "score": 0.85
+      }
+    ],
+    "evidence_analysis": {
+      "evidence_items": [
+        {
+          "evidence_id": "EV-USR-TXT-1",
+          "description": "Display / screen visual symptom reported in problem description: \"laptop turns on but black screen, fan spins\"",
+          "source": "user_reported",
+          "related_component": "display",
+          "evidence_type": "symptom",
+          "confidence_reliability": 0.75,
+          "verification_status": "unverified",
+          "polarity": "supporting",
+          "reference_id": "problem_description"
+        },
+        {
+          "evidence_id": "EV-USR-TXT-2",
+          "description": "Fan behavior symptom reported in problem description: \"laptop turns on but black screen, fan spins\"",
+          "source": "user_reported",
+          "related_component": "cooling_fan",
+          "evidence_type": "symptom",
+          "confidence_reliability": 0.75,
+          "verification_status": "unverified",
+          "polarity": "supporting",
+          "reference_id": "problem_description"
+        },
+        {
+          "evidence_id": "EV-USR-ANS-1",
+          "description": "Questionnaire response [affected_component]: Screen / display",
+          "source": "user_reported",
+          "related_component": "display",
+          "evidence_type": "symptom",
+          "confidence_reliability": 0.85,
+          "verification_status": "unverified",
+          "polarity": "supporting",
+          "reference_id": "affected_component"
+        },
+        {
+          "evidence_id": "EV-USR-ANS-2",
+          "description": "Questionnaire response [power_state]: Lights/fan turn on but no display",
+          "source": "user_reported",
+          "related_component": "display",
+          "evidence_type": "symptom",
+          "confidence_reliability": 0.85,
+          "verification_status": "unverified",
+          "polarity": "supporting",
+          "reference_id": "power_state"
+        },
+        {
+          "evidence_id": "EV-USR-ANS-3",
+          "description": "Questionnaire response [display]: Black screen",
+          "source": "user_reported",
+          "related_component": "display",
+          "evidence_type": "symptom",
+          "confidence_reliability": 0.85,
+          "verification_status": "unverified",
+          "polarity": "supporting",
+          "reference_id": "display"
+        }
+      ],
+      "contradictions": [],
+      "has_contradictions": false,
+      "ranked_hypotheses": [
+        {
+          "fault_id": "DESKTOP_GPU_SEATING_OR_PORT_MISMATCH",
+          "fault_name": "Monitor Cable in Motherboard Port / Unseated PCIe GPU / Missing PCIe Power",
+          "confidence_category": "Strongly supported",
+          "supporting_evidence": [
+            {
+              "evidence_id": "EV-USR-TXT-1",
+              "description": "Display / screen visual symptom reported in problem description: \"laptop turns on but black screen, fan spins\"",
+              "source": "user_reported",
+              "related_component": "display",
+              "evidence_type": "symptom",
+              "confidence_reliability": 0.75,
+              "verification_status": "unverified",
+              "polarity": "supporting",
+              "reference_id": "problem_description"
+            },
+            {
+              "evidence_id": "EV-USR-TXT-2",
+              "description": "Fan behavior symptom reported in problem description: \"laptop turns on but black screen, fan spins\"",
+              "source": "user_reported",
+              "related_component": "cooling_fan",
+              "evidence_type": "symptom",
+              "confidence_reliability": 0.75,
+              "verification_status": "unverified",
+              "polarity": "supporting",
+              "reference_id": "problem_description"
+            },
+            {
+              "evidence_id": "EV-USR-ANS-1",
+              "description": "Questionnaire response [affected_component]: Screen / display",
+              "source": "user_reported",
+              "related_component": "display",
+              "evidence_type": "symptom",
+              "confidence_reliability": 0.85,
+              "verification_status": "unverified",
+              "polarity": "supporting",
+              "reference_id": "affected_component"
+            },
+            {
+              "evidence_id": "EV-USR-ANS-2",
+              "description": "Questionnaire response [power_state]: Lights/fan turn on but no display",
+              "source": "user_reported",
+              "related_component": "display",
+              "evidence_type": "symptom",
+              "confidence_reliability": 0.85,
+              "verification_status": "unverified",
+              "polarity": "supporting",
+              "reference_id": "power_state"
+            },
+            {
+              "evidence_id": "EV-USR-ANS-3",
+              "description": "Questionnaire response [display]: Black screen",
+              "source": "user_reported",
+              "related_component": "display",
+              "evidence_type": "symptom",
+              "confidence_reliability": 0.85,
+              "verification_status": "unverified",
+              "polarity": "supporting",
+              "reference_id": "display"
+            }
+          ],
+          "contradicting_evidence": [],
+          "missing_evidence": [],
+          "recommended_next_check": "1. Inspect the back of the PC: ensure the monitor HDMI or DisplayPort cable is plugged into the HORIZONTAL graphics card ports, NOT the vertical motherboard ports near USB ports.",
+          "severity": "MEDIUM",
+          "repair_complexity": "Low (Beginner)",
+          "recommendation": "REPAIR (DIY)",
+          "estimated_cost": "₹0 ($0)",
+          "score": 4.05
+        },
+        {
+          "fault_id": "DESKTOP_RAM_CONTACT_POST_FAILURE",
+          "fault_name": "RAM Module Contact Oxidation / Unseated DIMM / POST Memory Error",
+          "confidence_category": "Strongly supported",
+          "supporting_evidence": [
+            {
+              "evidence_id": "EV-USR-TXT-1",
+              "description": "Display / screen visual symptom reported in problem description: \"laptop turns on but black screen, fan spins\"",
+              "source": "user_reported",
+              "related_component": "display",
+              "evidence_type": "symptom",
+              "confidence_reliability": 0.75,
+              "verification_status": "unverified",
+              "polarity": "supporting",
+              "reference_id": "problem_description"
+            },
+            {
+              "evidence_id": "EV-USR-ANS-1",
+              "description": "Questionnaire response [affected_component]: Screen / display",
+              "source": "user_reported",
+              "related_component": "display",
+              "evidence_type": "symptom",
+              "confidence_reliability": 0.85,
+              "verification_status": "unverified",
+              "polarity": "supporting",
+              "reference_id": "affected_component"
+            },
+            {
+              "evidence_id": "EV-USR-ANS-2",
+              "description": "Questionnaire response [power_state]: Lights/fan turn on but no display",
+              "source": "user_reported",
+              "related_component": "display",
+              "evidence_type": "symptom",
+              "confidence_reliability": 0.85,
+              "verification_status": "unverified",
+              "polarity": "supporting",
+              "reference_id": "power_state"
+            },
+            {
+              "evidence_id": "EV-USR-ANS-3",
+              "description": "Questionnaire response [display]: Black screen",
+              "source": "user_reported",
+              "related_component": "display",
+              "evidence_type": "symptom",
+              "confidence_reliability": 0.85,
+              "verification_status": "unverified",
+              "polarity": "supporting",
+              "reference_id": "display"
+            }
+          ],
+          "contradicting_evidence": [],
+          "missing_evidence": [
+            "Physical single-stick RAM test or contact eraser cleaning not yet performed"
+          ],
+          "recommended_next_check": "1. Observe motherboard EZ Debug LEDs (CPU, DRAM, VGA, BOOT): check if the 'DRAM' LED stays solid orange/amber.",
+          "severity": "MEDIUM",
+          "repair_complexity": "Low (Beginner)",
+          "recommendation": "REPAIR (DIY)",
+          "estimated_cost": "₹0 ($0)",
+          "score": 3.3000000000000003
+        },
+        {
+          "fault_id": "DESKTOP_PSU_POWER_FAILURE",
+          "fault_name": "Faulty ATX Power Supply Unit (PSU) / Dead Power Cable / Tripped Switch",
+          "confidence_category": "Strongly supported",
+          "supporting_evidence": [
+            {
+              "evidence_id": "EV-USR-TXT-1",
+              "description": "Display / screen visual symptom reported in problem description: \"laptop turns on but black screen, fan spins\"",
+              "source": "user_reported",
+              "related_component": "display",
+              "evidence_type": "symptom",
+              "confidence_reliability": 0.75,
+              "verification_status": "unverified",
+              "polarity": "supporting",
+              "reference_id": "problem_description"
+            },
+            {
+              "evidence_id": "EV-USR-TXT-2",
+              "description": "Fan behavior symptom reported in problem description: \"laptop turns on but black screen, fan spins\"",
+              "source": "user_reported",
+              "related_component": "cooling_fan",
+              "evidence_type": "symptom",
+              "confidence_reliability": 0.75,
+              "verification_status": "unverified",
+              "polarity": "supporting",
+              "reference_id": "problem_description"
+            },
+            {
+              "evidence_id": "EV-USR-ANS-2",
+              "description": "Questionnaire response [power_state]: Lights/fan turn on but no display",
+              "source": "user_reported",
+              "related_component": "display",
+              "evidence_type": "symptom",
+              "confidence_reliability": 0.85,
+              "verification_status": "unverified",
+              "polarity": "supporting",
+              "reference_id": "power_state"
+            }
+          ],
+          "contradicting_evidence": [],
+          "missing_evidence": [],
+          "recommended_next_check": "1. Verify the I/O rocker switch on the back of the PSU is toggled to the 'I' (ON) position.",
+          "severity": "MEDIUM",
+          "repair_complexity": "Medium (Intermediate)",
+          "recommendation": "REPAIR (DIY PSU Swap) / SERVICE (Professional)",
+          "estimated_cost": "₹1,800 - ₹5,500 ($22 - $65)",
+          "score": 2.35
+        },
+        {
+          "fault_id": "DESKTOP_FRONT_PANEL_POWER_SWITCH",
+          "fault_name": "Faulty Front Panel Power Button / Disconnected Motherboard Header Cable",
+          "confidence_category": "Possible",
+          "supporting_evidence": [
+            {
+              "evidence_id": "EV-USR-ANS-2",
+              "description": "Questionnaire response [power_state]: Lights/fan turn on but no display",
+              "source": "user_reported",
+              "related_component": "display",
+              "evidence_type": "symptom",
+              "confidence_reliability": 0.85,
+              "verification_status": "unverified",
+              "polarity": "supporting",
+              "reference_id": "power_state"
+            }
+          ],
+          "contradicting_evidence": [],
+          "missing_evidence": [],
+          "recommended_next_check": "1. Inspect the PC front/top panel: ensure the physical power button is not mechanically stuck or jammed in the depressed position.",
+          "severity": "LOW",
+          "repair_complexity": "Low (Beginner)",
+          "recommendation": "REPAIR (DIY)",
+          "estimated_cost": "₹0 - ₹200 ($0 - $3)",
+          "score": 0.85
+        }
+      ],
+      "primary_hypothesis": {
+        "fault_id": "DESKTOP_GPU_SEATING_OR_PORT_MISMATCH",
+        "fault_name": "Monitor Cable in Motherboard Port / Unseated PCIe GPU / Missing PCIe Power",
+        "confidence_category": "Strongly supported",
+        "supporting_evidence": [
+          {
+            "evidence_id": "EV-USR-TXT-1",
+            "description": "Display / screen visual symptom reported in problem description: \"laptop turns on but black screen, fan spins\"",
+            "source": "user_reported",
+            "related_component": "display",
+            "evidence_type": "symptom",
+            "confidence_reliability": 0.75,
+            "verification_status": "unverified",
+            "polarity": "supporting",
+            "reference_id": "problem_description"
+          },
+          {
+            "evidence_id": "EV-USR-TXT-2",
+            "description": "Fan behavior symptom reported in problem description: \"laptop turns on but black screen, fan spins\"",
+            "source": "user_reported",
+            "related_component": "cooling_fan",
+            "evidence_type": "symptom",
+            "confidence_reliability": 0.75,
+            "verification_status": "unverified",
+            "polarity": "supporting",
+            "reference_id": "problem_description"
+          },
+          {
+            "evidence_id": "EV-USR-ANS-1",
+            "description": "Questionnaire response [affected_component]: Screen / display",
+            "source": "user_reported",
+            "related_component": "display",
+            "evidence_type": "symptom",
+            "confidence_reliability": 0.85,
+            "verification_status": "unverified",
+            "polarity": "supporting",
+            "reference_id": "affected_component"
+          },
+          {
+            "evidence_id": "EV-USR-ANS-2",
+            "description": "Questionnaire response [power_state]: Lights/fan turn on but no display",
+            "source": "user_reported",
+            "related_component": "display",
+            "evidence_type": "symptom",
+            "confidence_reliability": 0.85,
+            "verification_status": "unverified",
+            "polarity": "supporting",
+            "reference_id": "power_state"
+          },
+          {
+            "evidence_id": "EV-USR-ANS-3",
+            "description": "Questionnaire response [display]: Black screen",
+            "source": "user_reported",
+            "related_component": "display",
+            "evidence_type": "symptom",
+            "confidence_reliability": 0.85,
+            "verification_status": "unverified",
+            "polarity": "supporting",
+            "reference_id": "display"
+          }
+        ],
+        "contradicting_evidence": [],
+        "missing_evidence": [],
+        "recommended_next_check": "1. Inspect the back of the PC: ensure the monitor HDMI or DisplayPort cable is plugged into the HORIZONTAL graphics card ports, NOT the vertical motherboard ports near USB ports.",
+        "severity": "MEDIUM",
+        "repair_complexity": "Low (Beginner)",
+        "recommendation": "REPAIR (DIY)",
+        "estimated_cost": "₹0 ($0)",
+        "score": 4.05
+      },
+      "is_inconclusive": false,
+      "recommended_next_check": "1. Inspect the back of the PC: ensure the monitor HDMI or DisplayPort cable is plugged into the HORIZONTAL graphics card ports, NOT the vertical motherboard ports near USB ports.",
+      "evidence_counts": {
+        "total": 5,
+        "observed": 0,
+        "user_reported": 5,
+        "imported_specs": 0,
+        "confirmed_tests": 0
+      }
+    }
+  },
+  "repair_recommendation": {
+    "action": "SERVICE (Professional)",
+    "complexity": "Unknown",
+    "rationale": "The symptoms provided did not match any single known failure mode with sufficient confidence. A hands-on hardware inspection by a technician is recommended.",
+    "estimated_cost": "To be quoted after inspection",
+    "estimated_time": "Not applicable",
+    "required_tools": []
+  },
+  "repair_decision": {
+    "verdict": "SERVICE (technician)",
+    "safety_hold": false,
+    "low_confidence": true,
+    "repair_cost_range": [
+      null,
+      null
+    ],
+    "replacement_cost": 55000.0,
+    "cost_ratio": null,
+    "estimated_saving": null,
+    "e_waste": {
+      "status": "avoided",
+      "amount_kg": 9.5,
+      "unit": "kg",
+      "assumption": "Typical desktop mass is estimated at 9.5 kg (editable assumption).",
+      "summary": "Estimated e-waste avoided: ~9.5 kg (estimate based on typical desktop mass)."
+    },
+    "reasons": [
+      "Exact parts cost could not be parsed; verdict assigned based on repair complexity and safety profile.",
+      "Low-confidence note: Repair cost could not be parsed from diagnosis (requires physical quote).",
+      "Low-confidence note: Diagnosis is inconclusive and requires professional bench testing."
+    ],
+    "decision_factors": [
+      {
+        "factor": "cost_ratio",
+        "repair_cost_mid_inr": null,
+        "replacement_cost_inr": 55000.0,
+        "ratio": null,
+        "threshold_replace": 0.6,
+        "threshold_replace_old": 0.4,
+        "detail": "Cost not parsed"
+      },
+      {
+        "factor": "device_age",
+        "age_years": null,
+        "typical_life_years": 7.0,
+        "life_used_ratio": null,
+        "detail": "Age not entered (typical lifespan: 7 years)"
+      },
+      {
+        "factor": "safety_hold",
+        "active": false,
+        "severity": "LOW",
+        "detail": "No safety hold"
+      },
+      {
+        "factor": "complexity",
+        "level": "Unknown",
+        "detail": "Complexity: Unknown"
+      },
+      {
+        "factor": "confidence",
+        "diagnostic_confidence": 0.15,
+        "is_low_confidence": true,
+        "detail": "Low-confidence verdict: Repair cost could not be parsed from diagnosis (requires physical quote).; Diagnosis is inconclusive and requires professional bench testing."
+      }
+    ],
+    "assumptions": [
+      "Replacement price: Rs 55,000 (default assumption; override with --replacement-cost)",
+      "Typical lifespan: 7 years (default assumption; override with --age)",
+      "Typical desktop mass for e-waste calculations: 9.5 kg (estimate assumption).",
+      "Repair cost is an estimated parts range from knowledge base, not a formal service center quote.",
+      "Part replacement (e.g. replacing an LCD panel or battery) is categorized as repair of the device, not whole-device replacement."
+    ]
+  },
+  "visual_analysis": null,
+  "input_image": null,
+  "input_images": [],
+  "hardware_profile": {
+    "device_type": "desktop",
+    "cabinet_status": "UNKNOWN",
+    "images_analyzed": [],
+    "close_up_requests": [],
+    "notes": [],
+    "imported_specs": {
+      "system_type": null,
+      "os_name": "Windows 11 Pro",
+      "os_version": null,
+      "cpu_manufacturer": "AMD",
+      "cpu_model": "AMD Ryzen 9 5900X (12 cores)",
+      "cpu_cores": 12,
+      "cpu_threads": null,
+      "gpu_manufacturer": "NVIDIA",
+      "gpu_model": "NVIDIA GeForce RTX 3080",
+      "ram_total_gb": 64.0,
+      "ram_configuration": "2x 32GB DDR4",
+      "ram_slots_used": 2,
+      "ram_total_slots": null,
+      "storage_devices": [],
+      "storage_summary": null,
+      "motherboard_manufacturer": "ASUS",
+      "motherboard_model": "ASUS ROG CROSSHAIR VIII",
+      "source_format": "txt",
+      "source_filename": null,
+      "sanitized_fields": [],
+      "raw_metadata": {},
+      "parsing_warnings": []
+    },
+    "specs_conflicts": [],
+    "components": {
+      "motherboard": {
+        "component_name": "Desktop Motherboard (ATX/mATX/ITX) [ASUS ASUS ROG CROSSHAIR VIII]",
+        "component_category": "motherboard",
+        "device_type": "desktop",
+        "detection_source": "specs_report",
+        "confidence": null,
+        "visibility_status": "IMPORTED_FROM_REPORT",
+        "bounding_box": null,
+        "image_references": [],
+        "verification_status": "verified_from_report",
+        "supported_by_model": true,
+        "close_up_needed": false,
+        "notes": "Imported from specification report (ASUS ASUS ROG CROSSHAIR VIII). Not visually observed in photos.",
+        "is_present": true,
+        "specs_details": {
+          "manufacturer": "ASUS",
+          "model": "ASUS ROG CROSSHAIR VIII"
+        },
+        "has_conflict": false,
+        "conflict_details": null
+      },
+      "cpu": {
+        "component_name": "Central Processing Unit (CPU) [AMD AMD Ryzen 9 5900X (12 cores)]",
+        "component_category": "cpu",
+        "device_type": "desktop",
+        "detection_source": "specs_report",
+        "confidence": null,
+        "visibility_status": "IMPORTED_FROM_REPORT",
+        "bounding_box": null,
+        "image_references": [],
+        "verification_status": "verified_from_report",
+        "supported_by_model": true,
+        "close_up_needed": false,
+        "notes": "Imported from specification report (AMD AMD Ryzen 9 5900X (12 cores)). Not visually observed in photos.",
+        "is_present": true,
+        "specs_details": {
+          "manufacturer": "AMD",
+          "model": "AMD Ryzen 9 5900X (12 cores)",
+          "cores": 12,
+          "threads": null
+        },
+        "has_conflict": false,
+        "conflict_details": null
+      },
+      "ram": {
+        "component_name": "RAM Modules (DIMM) [64.0 GB RAM (2x 32GB DDR4)]",
+        "component_category": "ram",
+        "device_type": "desktop",
+        "detection_source": "specs_report",
+        "confidence": null,
+        "visibility_status": "IMPORTED_FROM_REPORT",
+        "bounding_box": null,
+        "image_references": [],
+        "verification_status": "verified_from_report",
+        "supported_by_model": true,
+        "close_up_needed": false,
+        "notes": "Imported from specification report (64.0 GB RAM (2x 32GB DDR4)). Not visually observed in photos.",
+        "is_present": true,
+        "specs_details": {
+          "capacity_gb": 64.0,
+          "configuration": "2x 32GB DDR4",
+          "slots_used": 2,
+          "total_slots": null
+        },
+        "has_conflict": false,
+        "conflict_details": null
+      },
+      "cpu_cooler": {
+        "component_name": "CPU Cooler (Heatsink / Fan / AIO)",
+        "component_category": "cpu_cooler",
+        "device_type": "desktop",
+        "detection_source": "not_detected",
+        "confidence": null,
+        "visibility_status": "NOT_DETECTED",
+        "bounding_box": null,
+        "image_references": [],
+        "verification_status": "unverified",
+        "supported_by_model": true,
+        "close_up_needed": false,
+        "notes": "Not observed in provided image(s). Note: NOT_DETECTED does not mean NOT_PRESENT.",
+        "is_present": null,
+        "specs_details": null,
+        "has_conflict": false,
+        "conflict_details": null
+      },
+      "gpu": {
+        "component_name": "Discrete GPU (PCIe Graphics Card) [NVIDIA NVIDIA GeForce RTX 3080]",
+        "component_category": "gpu",
+        "device_type": "desktop",
+        "detection_source": "specs_report",
+        "confidence": null,
+        "visibility_status": "IMPORTED_FROM_REPORT",
+        "bounding_box": null,
+        "image_references": [],
+        "verification_status": "verified_from_report",
+        "supported_by_model": true,
+        "close_up_needed": false,
+        "notes": "Imported from specification report (NVIDIA NVIDIA GeForce RTX 3080). Not visually observed in photos.",
+        "is_present": true,
+        "specs_details": {
+          "manufacturer": "NVIDIA",
+          "model": "NVIDIA GeForce RTX 3080"
+        },
+        "has_conflict": false,
+        "conflict_details": null
+      },
+      "ssd": {
+        "component_name": "Solid State Drive (M.2 NVMe / SATA SSD)",
+        "component_category": "ssd",
+        "device_type": "desktop",
+        "detection_source": "not_detected",
+        "confidence": null,
+        "visibility_status": "NOT_DETECTED",
+        "bounding_box": null,
+        "image_references": [],
+        "verification_status": "unverified",
+        "supported_by_model": true,
+        "close_up_needed": false,
+        "notes": "Not observed in provided image(s). Note: NOT_DETECTED does not mean NOT_PRESENT.",
+        "is_present": null,
+        "specs_details": null,
+        "has_conflict": false,
+        "conflict_details": null
+      },
+      "hdd": {
+        "component_name": "Hard Disk Drive (3.5\" / 2.5\" HDD)",
+        "component_category": "hdd",
+        "device_type": "desktop",
+        "detection_source": "not_detected",
+        "confidence": null,
+        "visibility_status": "NOT_DETECTED",
+        "bounding_box": null,
+        "image_references": [],
+        "verification_status": "unverified",
+        "supported_by_model": true,
+        "close_up_needed": false,
+        "notes": "Not observed in provided image(s). Note: NOT_DETECTED does not mean NOT_PRESENT.",
+        "is_present": null,
+        "specs_details": null,
+        "has_conflict": false,
+        "conflict_details": null
+      },
+      "psu": {
+        "component_name": "Power Supply Unit (ATX PSU)",
+        "component_category": "psu",
+        "device_type": "desktop",
+        "detection_source": "not_detected",
+        "confidence": null,
+        "visibility_status": "NOT_DETECTED",
+        "bounding_box": null,
+        "image_references": [],
+        "verification_status": "unverified",
+        "supported_by_model": true,
+        "close_up_needed": false,
+        "notes": "Not observed in provided image(s). Note: NOT_DETECTED does not mean NOT_PRESENT.",
+        "is_present": null,
+        "specs_details": null,
+        "has_conflict": false,
+        "conflict_details": null
+      },
+      "case_fans": {
+        "component_name": "Chassis / Case Cooling Fans",
+        "component_category": "case_fans",
+        "device_type": "desktop",
+        "detection_source": "not_detected",
+        "confidence": null,
+        "visibility_status": "NOT_DETECTED",
+        "bounding_box": null,
+        "image_references": [],
+        "verification_status": "unverified",
+        "supported_by_model": true,
+        "close_up_needed": false,
+        "notes": "Not observed in provided image(s). Note: NOT_DETECTED does not mean NOT_PRESENT.",
+        "is_present": null,
+        "specs_details": null,
+        "has_conflict": false,
+        "conflict_details": null
+      },
+      "cables": {
+        "component_name": "Internal Power / SATA / Front Panel Cables",
+        "component_category": "cables",
+        "device_type": "desktop",
+        "detection_source": "not_detected",
+        "confidence": null,
+        "visibility_status": "NOT_DETECTED",
+        "bounding_box": null,
+        "image_references": [],
+        "verification_status": "unverified",
+        "supported_by_model": true,
+        "close_up_needed": false,
+        "notes": "Not observed in provided image(s). Note: NOT_DETECTED does not mean NOT_PRESENT.",
+        "is_present": null,
+        "specs_details": null,
+        "has_conflict": false,
+        "conflict_details": null
+      },
+      "cabinet": {
+        "component_name": "PC Cabinet / Chassis",
+        "component_category": "cabinet",
+        "device_type": "desktop",
+        "detection_source": "not_detected",
+        "confidence": null,
+        "visibility_status": "NOT_DETECTED",
+        "bounding_box": null,
+        "image_references": [],
+        "verification_status": "unverified",
+        "supported_by_model": true,
+        "close_up_needed": false,
+        "notes": "Not observed in provided image(s). Note: NOT_DETECTED does not mean NOT_PRESENT.",
+        "is_present": null,
+        "specs_details": null,
+        "has_conflict": false,
+        "conflict_details": null
+      }
+    },
+    "summary": {
+      "detected_count": 0,
+      "partially_visible_count": 0,
+      "uncertain_count": 0,
+      "imported_from_report_count": 4,
+      "not_detected_count": 7
+    }
+  },
+  "cabinet_status": "UNKNOWN",
+  "close_up_requests": [],
+  "imported_specs": {
+    "system_type": null,
+    "os_name": "Windows 11 Pro",
+    "os_version": null,
+    "cpu_manufacturer": "AMD",
+    "cpu_model": "AMD Ryzen 9 5900X (12 cores)",
+    "cpu_cores": 12,
+    "cpu_threads": null,
+    "gpu_manufacturer": "NVIDIA",
+    "gpu_model": "NVIDIA GeForce RTX 3080",
+    "ram_total_gb": 64.0,
+    "ram_configuration": "2x 32GB DDR4",
+    "ram_slots_used": 2,
+    "ram_total_slots": null,
+    "storage_devices": [],
+    "storage_summary": null,
+    "motherboard_manufacturer": "ASUS",
+    "motherboard_model": "ASUS ROG CROSSHAIR VIII",
+    "source_format": "txt",
+    "source_filename": null,
+    "sanitized_fields": [],
+    "raw_metadata": {},
+    "parsing_warnings": []
+  },
+  "specs_conflicts": [],
+  "specs_sanitized_fields": [],
+  "decision_inputs": {
+    "device_age_years": null,
+    "replacement_cost_override_inr": null
+  },
+  "explanation": {
+    "text": "Recommendation: SERVICE (technician). Most likely issue: Inconclusive - professional inspection recommended. Exact parts cost could not be parsed; verdict assigned based on repair complexity and safety profile. Low-confidence note: Repair cost could not be parsed from diagnosis (requires physical quote). Repairing this device avoids an estimated 9.5 kg of e-waste (estimate).",
+    "source": "built-in template"
+  }
+}

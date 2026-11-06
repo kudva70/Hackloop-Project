@@ -1,12 +1,27 @@
-"""Questionnaire for the Roboflow PC/laptop-component detector only.
+"""Questionnaire for PC/laptop hardware diagnosis.
+Upgraded to a Hybrid Adaptive AI Diagnostic Questionnaire.
 
-The detector's labels describe components (e.g. RAM or motherboard), not separate
-household devices. This module intentionally does not ask about fans-as-appliances,
-bulbs, switchboards, or other unrelated electronics.
+Maintains existing questionnaire entry points while providing:
+- Dynamic question selection based on hardware inventory and hypotheses.
+- One-question-at-a-time interactive CLI.
+- Immediate safety interruption on hazards.
+- Seamless compatibility with DiagnosticSession and QuestionPlanner.
 """
+
+from typing import Dict, List, Optional, Any
 import re
 from datetime import datetime, timezone
-from fault_engine import DEVICE_REGISTRY, is_device_supported, get_canonical_device, evaluate_safety, GENERAL_UNSUPPORTED_SAFETY_ADVICE, STOP_USING_ADVICE
+
+from fault_engine import (
+    DEVICE_REGISTRY,
+    is_device_supported,
+    get_canonical_device,
+    evaluate_safety,
+    GENERAL_UNSUPPORTED_SAFETY_ADVICE,
+    STOP_USING_ADVICE,
+)
+from question_planner import DiagnosticQuestion, QuestionPlanner, SafetyValidator
+from diagnostic_session import DiagnosticSession, DiagnosticSessionState, session_manager
 
 # Pre-fill questionnaire keys from a free-text description and skip asking those keys.
 DESCRIPTION_ANSWER_MAP = {
@@ -31,7 +46,7 @@ QUESTIONNAIRE_KEYS = [
     "duration",
 ]
 
-LAPTOP_MENTION_TERMS = ("laptop", "notebook", "macbook", "computer", "pc")
+LAPTOP_MENTION_TERMS = ("laptop", "notebook", "macbook", "computer", "pc", "desktop", "tower", "cabinet", "rig")
 UNSUPPORTED_DEVICE_TERMS = (
     "washing machine",
     "microwave",
@@ -169,121 +184,193 @@ def run_questionnaire(
     print("\n" + "=" * 52)
     print("       REPAIR BEFORE REPLACE — PC HARDWARE")
     print("=" * 52)
-    print("Diagnostic target: Laptop / PC")
+    target_label = "Desktop PC / Tower" if device == "desktop" else "Laptop / Notebook"
+    print(f"Diagnostic target: {target_label}")
     print("Detected component(s): " + (", ".join(findings) if findings else "No component label returned"))
     if confidence is not None:
         print(f"Detection confidence: {confidence:.1%}")
-    print("\nAnswer based on the affected computer/component. If unsure, choose Not sure.")
 
-    questions = {
-        "affected_component": (
-            "Which detected component seems affected?",
-            (findings + ["Motherboard / mainboard", "RAM / memory", "SSD / HDD storage",
-                         "Battery / charging", "Cooling fan / heatsink", "CPU / GPU",
-                         "Screen / display", "Keyboard / touchpad", "Port / Wi-Fi / other",
-                         "Not sure"]),
-        ),
-        "power_state": (
-            "What happens when you press the power button?",
-            ["Starts normally", "No power or lights", "Lights/fan turn on but no display",
-             "Starts then shuts down", "Not sure"],
-        ),
-        "startup_signals": (
-            "Are there beep codes, diagnostic LEDs, or a boot error?",
-            ["No", "Beep code", "Blinking diagnostic LED", "Error message", "Not sure"],
-        ),
-        "memory_storage": (
-            "What memory or storage symptom do you notice?",
-            ["Works normally", "RAM not detected / memory error",
-             "No boot device / SSD or HDD not detected", "Files or system load very slowly",
-             "Frequent crashes/freezes", "Not sure / not applicable"],
-        ),
-        "display": (
-            "What is the display condition?",
-            ["Works normally", "Black screen", "Flickering / lines",
-             "Cracked or physically damaged", "External monitor works but built-in screen does not",
-             "Not sure / not applicable"],
-        ),
-        "temperature": (
-            "Does the computer show overheating or cooling symptoms?",
-            ["Normal temperature", "Runs unusually hot", "Fan unusually loud",
-             "Fan not spinning", "Thermal shutdown", "Not sure"],
-        ),
-        "charging": (
-            "What is the battery or power-input behaviour?",
-            ["Works normally", "Does not charge / no power", "Charges intermittently",
-             "Battery drains quickly", "Battery looks swollen", "Not sure / not applicable"],
-        ),
-        "recent_event": (
-            "Did anything happen shortly before the problem began?",
-            ["No known event", "Drop / physical impact", "Liquid spill",
-             "Power surge / electrical event", "Recent upgrade or repair", "Unknown"],
-        ),
-        "hazards": (
-            "Is there smoke, a burning smell, sparks, electric shock, or a swollen battery?",
-            ["Yes", "No", "Not sure"],
-        ),
-        "duration": (
-            "How long has the problem been occurring?",
-            ["Started today", "A few days", "A few weeks", "Several months", "Not sure"],
-        ),
-    }
-    scripted_answers = scripted_answers or {}
-    answers = answers_from_description(free_text)
-    for question_id, (question, options) in questions.items():
-        options = list(dict.fromkeys(options))
-        if question_id in answers and answers[question_id] in options:
-            print(f"\n{question}\n  -> {answers[question_id]} (from description)")
-            continue
-        if question_id in scripted_answers:
-            answers[question_id] = scripted_answers[question_id]
-            continue
-        if skip_prompts:
-            answers[question_id] = _default_skipped_answer(options)
-            continue
-        answers[question_id] = ask_question(question, options)
+    # Initialize DiagnosticSession
+    session = DiagnosticSession(
+        device_type=device,
+        problem_description=free_text or "",
+        hardware_profile=detection_result.get("hardware_profile"),
+        visual_findings=findings,
+        use_gemini=use_gemini,
+    )
 
-    # OpenCV damage confirmation follow-up (if minor discoloration was detected)
-    if detection_result.get("cv_follow_up"):
-        fu = detection_result["cv_follow_up"]
-        print("\n[CV DAMAGE FOLLOW-UP]")
-        if "cv_discoloration_verified" in scripted_answers:
-            fu_ans = scripted_answers["cv_discoloration_verified"]
-        elif skip_prompts:
-            fu_ans = "Not sure"
-        else:
-            fu_ans = ask_question(fu["question"], fu["options"])
-        answers["cv_discoloration_verified"] = fu_ans
-        if fu_ans == "Yes":
-            answers["hazards"] = "Yes"
-
-    safety_eval = evaluate_safety(answers=answers, free_text=free_text)
-    safety_alert = safety_eval["safety_alert"]
-    requires_pro = safety_eval["requires_professional_attention"]
-
-    result = {
-        "status": "success", "module": "questionnaire", "device_type": device,
-        "detected_findings": findings, "detection_confidence": confidence,
-        "image_path": str(image_path) if image_path else None, "answers": answers,
-        "free_text": free_text,
-        "safety_alert": safety_alert,
-        "requires_professional_attention": requires_pro, "diagnosis": None,
-        "repair_recommendation": None,
-        "created_at": datetime.now(timezone.utc).isoformat(),
-    }
-    if safety_alert:
+    # If already in safety hazard state from free text
+    if session.safety_alert:
         print("\n" + "!" * 60)
         print("CRITICAL SAFETY ALERT — HARD HAZARD DETECTED")
         print("!" * 60)
-        for advice_line in safety_eval["stop_using_advice"]:
+        for advice_line in session.stop_using_advice:
             print(f"  {advice_line}")
         print("!" * 60)
+        return session.finalize_diagnosis(image_path=image_path)
+
+    # Handle scripted answers or automated test inputs
+    scripted_answers = scripted_answers or {}
+    pre_filled = answers_from_description(free_text)
+
+    # 1. Interactive Adaptive CLI Mode (when prompts are enabled and no scripted answers)
+    if not skip_prompts and not scripted_answers:
+        print("\nAnswer based on the affected computer/component. If unsure, choose Not sure.")
+        while not session.is_complete:
+            q = session.get_next_question()
+            if not q:
+                break
+
+            print(f"\n[Adaptive Question {session.current_step}/{session.estimated_total_steps}]")
+            choice = ask_question(q.text, q.options)
+            session.submit_answer(q.question_id, choice)
+
+            if session.safety_alert:
+                print("\n" + "!" * 60)
+                print("CRITICAL SAFETY ALERT — HARD HAZARD DETECTED")
+                print("!" * 60)
+                for advice_line in session.stop_using_advice:
+                    print(f"  {advice_line}")
+                print("!" * 60)
+                break
+
+    # 2. Automated / Scripted / Skip-prompts Mode
+    else:
+        # Backward-compatible questions bank mapping
+        if device == "desktop":
+            legacy_questions = {
+                "affected_component": (
+                    "Which detected component seems affected?",
+                    (findings + ["Desktop Motherboard", "RAM / Memory DIMM", "Dedicated GPU / Graphics Card",
+                                 "Power Supply Unit (PSU)", "CPU Cooler / Heatsink", "SSD / HDD storage",
+                                 "PC Cabinet / Power Button", "Cables / Connectors", "Not sure"]),
+                ),
+                "power_state": (
+                    "What happens when you press the power button?",
+                    ["Starts normally", "No power or lights", "Lights/fan turn on but no display",
+                     "Starts then shuts down", "Not sure"],
+                ),
+                "startup_signals": (
+                    "Are there beep codes, diagnostic LEDs, or a boot error?",
+                    ["No", "Beep code", "Blinking diagnostic LED", "Error message", "Not sure"],
+                ),
+                "memory_storage": (
+                    "What memory or storage symptom do you notice?",
+                    ["Works normally", "RAM not detected / memory error",
+                     "No boot device / SSD or HDD not detected", "Files or system load very slowly",
+                     "Frequent crashes/freezes", "Not sure / not applicable"],
+                ),
+                "display": (
+                    "What is the monitor / GPU display condition?",
+                    ["Works normally", "Black screen", "Flickering / lines",
+                     "Cracked or physically damaged", "Monitor shows 'No Signal' / Cable plugged into motherboard",
+                     "Not sure / not applicable"],
+                ),
+                "temperature": (
+                    "Does the computer show overheating or cooling symptoms?",
+                    ["Normal temperature", "Runs unusually hot", "Fan unusually loud",
+                     "Fan not spinning", "Thermal shutdown", "Not sure"],
+                ),
+                "charging": (
+                    "What is the power supply (PSU) or power cord behaviour?",
+                    ["Works normally", "Does not charge / no power", "Charges intermittently",
+                     "PSU fan not spinning", "Sparks or burning smell from PSU", "Not sure / not applicable"],
+                ),
+                "recent_event": (
+                    "Did anything happen shortly before the problem began?",
+                    ["No known event", "Drop / physical impact", "Liquid spill",
+                     "Power surge / electrical event", "Recent upgrade or repair", "Unknown"],
+                ),
+                "hazards": (
+                    "Is there smoke, a burning smell, sparks, electric shock, or a swollen battery?",
+                    ["Yes", "No", "Not sure"],
+                ),
+                "duration": (
+                    "How long has the problem been occurring?",
+                    ["Started today", "A few days", "A few weeks", "Several months", "Not sure"],
+                ),
+            }
+        else:
+            legacy_questions = {
+                "affected_component": (
+                    "Which detected component seems affected?",
+                    (findings + ["Motherboard / mainboard", "RAM / memory", "SSD / HDD storage",
+                                 "Battery / charging", "Cooling fan / heatsink", "CPU / GPU",
+                                 "Screen / display", "Keyboard / touchpad", "Port / Wi-Fi / other",
+                                 "Not sure"]),
+                ),
+                "power_state": (
+                    "What happens when you press the power button?",
+                    ["Starts normally", "No power or lights", "Lights/fan turn on but no display",
+                     "Starts then shuts down", "Not sure"],
+                ),
+                "startup_signals": (
+                    "Are there beep codes, diagnostic LEDs, or a boot error?",
+                    ["No", "Beep code", "Blinking diagnostic LED", "Error message", "Not sure"],
+                ),
+                "memory_storage": (
+                    "What memory or storage symptom do you notice?",
+                    ["Works normally", "RAM not detected / memory error",
+                     "No boot device / SSD or HDD not detected", "Files or system load very slowly",
+                     "Frequent crashes/freezes", "Not sure / not applicable"],
+                ),
+                "display": (
+                    "What is the display condition?",
+                    ["Works normally", "Black screen", "Flickering / lines",
+                     "Cracked or physically damaged", "External monitor works but built-in screen does not",
+                     "Not sure / not applicable"],
+                ),
+                "temperature": (
+                    "Does the computer show overheating or cooling symptoms?",
+                    ["Normal temperature", "Runs unusually hot", "Fan unusually loud",
+                     "Fan not spinning", "Thermal shutdown", "Not sure"],
+                ),
+                "charging": (
+                    "What is the battery or power-input behaviour?",
+                    ["Works normally", "Does not charge / no power", "Charges intermittently",
+                     "Battery drains quickly", "Battery looks swollen", "Not sure / not applicable"],
+                ),
+                "recent_event": (
+                    "Did anything happen shortly before the problem began?",
+                    ["No known event", "Drop / physical impact", "Liquid spill",
+                     "Power surge / electrical event", "Recent upgrade or repair", "Unknown"],
+                ),
+                "hazards": (
+                    "Is there smoke, a burning smell, sparks, electric shock, or a swollen battery?",
+                    ["Yes", "No", "Not sure"],
+                ),
+                "duration": (
+                    "How long has the problem been occurring?",
+                    ["Started today", "A few days", "A few weeks", "Several months", "Not sure"],
+                ),
+            }
+
+        answers = dict(pre_filled)
+        for question_id, (q_text, options) in legacy_questions.items():
+            options = list(dict.fromkeys(options))
+            if question_id in answers and answers[question_id] in options:
+                print(f"\n{q_text}\n  -> {answers[question_id]} (from description)")
+                session.submit_answer(question_id, answers[question_id])
+                continue
+            if question_id in scripted_answers:
+                answers[question_id] = scripted_answers[question_id]
+                session.submit_answer(question_id, scripted_answers[question_id])
+                continue
+            if skip_prompts:
+                def_ans = _default_skipped_answer(options)
+                answers[question_id] = def_ans
+                session.submit_answer(question_id, def_ans)
+                continue
+
+        # OpenCV follow-up
+        if detection_result.get("cv_follow_up"):
+            fu = detection_result["cv_follow_up"]
+            fu_ans = scripted_answers.get("cv_discoloration_verified", "Not sure" if skip_prompts else ask_question(fu["question"], fu["options"]))
+            session.submit_answer("cv_discoloration_verified", fu_ans)
+            if fu_ans == "Yes":
+                session.submit_answer("hazards", "Yes")
 
     if run_diagnosis:
-        try:
-            from fault_engine import process_questionnaire
-            result = process_questionnaire(result, image_path=image_path, use_gemini=use_gemini)
-        except (ImportError, RuntimeError, ValueError) as error:
-            result["diagnosis_error"] = str(error)
+        return session.finalize_diagnosis(image_path=image_path)
 
-    return result
+    return session.get_state().to_dict()
